@@ -1,0 +1,77 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../js/**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50;
+}
+
+@utility btn-primary {
+    @apply btn bg-indigo-600 text-white shadow-sm hover:bg-indigo-500;
+}
+
+@utility btn-secondary {
+    @apply btn bg-white text-slate-700 ring-1 ring-slate-300 ring-inset hover:bg-slate-50;
+}
+
+@utility btn-danger {
+    @apply btn bg-white text-red-600 ring-1 ring-red-200 ring-inset hover:bg-red-50;
+}
+
+@utility btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100;
+}
+
+@utility card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-xs;
+}
+
+@utility label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+}
+
+@utility input {
+    @apply block w-full rounded-lg border-slate-300 text-sm shadow-xs focus:border-indigo-500 focus:ring-indigo-500;
+}
+
+@utility error {
+    @apply mt-1 text-sm text-red-600;
+}
+
+@utility chip {
+    @apply inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700;
+}
+
+@layer components {
+    /* Cifra: monoespaçada, sem quebra, preserva espaços e alinhamento. */
+    .sheet {
+        @apply font-mono text-[13px] leading-[1.45] text-slate-800 sm:text-sm;
+        white-space: pre;
+        overflow-x: auto;
+    }
+    .sheet .ln-chords {
+        @apply font-bold text-indigo-700;
+    }
+    .sheet .ln-section {
+        @apply mt-2 font-sans font-semibold text-slate-500 uppercase tracking-wide text-xs;
+    }
+    .sheet .ln-tab {
+        @apply text-slate-500;
+    }
+    .sheet.wrap {
+        white-space: pre-wrap;
+    }
+}

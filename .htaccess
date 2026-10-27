@@ -1,0 +1,20 @@
+# SHIM DE DESENVOLVIMENTO — Apache compartilhado do webServer: http://ivocompany.local:8000/src/cifras/
+# Faz o papel do DocumentRoot public/ sem expor .env, vendor/, storage/, app/...
+# NÃO é configuração de produção (em produção o Nginx aponta o root para public/; ver docs/deploy-hostinger.md).
+Options -MultiViews -Indexes
+DirectoryIndex disabled
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteRule ^server\.php$ - [L]
+
+    # URLs com extensão só podem vir de public/ (o que não existir lá dá 404).
+    RewriteCond %{REQUEST_URI} !/public/ [NC]
+    RewriteCond %{REQUEST_URI} \.\w+$ [NC]
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Todo o resto vai ao Laravel.
+    RewriteCond %{REQUEST_URI} !/public/ [NC]
+    RewriteRule ^ server.php [L]
+</IfModule>
