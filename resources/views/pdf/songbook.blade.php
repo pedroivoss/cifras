@@ -21,7 +21,7 @@
         .toc table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
         .toc td { padding: 3pt 0; border-bottom: 0.5pt solid #e5e7eb; }
         .toc .n { width: 22pt; color: #6b7280; }
-        .toc .k { width: 50pt; text-align: right; font-weight: bold; color: #3730a3; }
+        .toc .k { width: 50pt; text-align: right; font-weight: bold; color: #D97757; }
         .song-head { border-bottom: 1pt solid #d1d5db; padding-bottom: 4pt; margin-bottom: 8pt; page-break-after: avoid; }
         .song-head h2 { font-size: 14pt; margin: 0; }
         .song-head h2 .num { color: #6b7280; }
@@ -33,7 +33,7 @@
         .blk { page-break-inside: avoid; }
         .ln { white-space: pre; }
         .wrap .ln { white-space: pre-wrap; }
-        .ln-chords { font-weight: bold; color: #3730a3; }
+        .ln-chords { font-weight: bold; color: #D97757; }
         .ln-section { font-family: 'DejaVu Sans', sans-serif; font-weight: bold; color: #6b7280; font-size: 0.85em; text-transform: uppercase; margin-top: 4pt; page-break-after: avoid; }
         .ln-tab { color: #4b5563; }
     </style>

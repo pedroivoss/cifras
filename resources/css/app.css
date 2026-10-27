@@ -8,6 +8,7 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-chord: #D97757;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
 }
 
@@ -63,7 +64,7 @@
         overflow-x: auto;
     }
     .sheet .ln-chords {
-        @apply font-bold text-indigo-700;
+        @apply font-bold text-chord;
     }
     .sheet .ln-section {
         @apply mt-2 font-sans font-semibold text-slate-500 uppercase tracking-wide text-xs;

@@ -36,6 +36,19 @@ class SongPdfReaderTest extends TestCase
         );
     }
 
+    public function test_uses_font_size_when_available(): void
+    {
+        // Fonte de 10pt: caractere monoespaçado de 6pt. Trechos colados (sem espaço entre eles).
+        $items = array_map(fn (array $c) => [...$c, 'F1', '10'], [
+            self::chunk(0, 700, 'D'),
+            self::chunk(6, 700, 'A/C#'),
+            self::chunk(0, 686, 'Glória '),
+            self::chunk(7, 686, 'a Deus'),
+        ]);
+
+        $this->assertSame("D     A/C#\nGlória a Deus", SongPdfReader::pageText($items));
+    }
+
     public function test_lines_are_ordered_top_to_bottom_and_footer_page_numbers_dropped(): void
     {
         $items = [

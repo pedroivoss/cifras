@@ -4,6 +4,7 @@ namespace App\Services\Import;
 
 use App\Services\Chords\Key;
 use RuntimeException;
+use Smalot\PdfParser\Config;
 use Smalot\PdfParser\Parser;
 use Throwable;
 
@@ -22,6 +23,9 @@ final class SongPdfReader
     /** Tolerância vertical (pt) para considerar dois trechos na mesma linha. */
     private const LINE_TOLERANCE = 2.0;
 
+    /** Largura média de um caractere monoespaçado, em "em" (Courier 0,60; DejaVu Sans Mono 0,602). */
+    private const MONO_ADVANCE = 0.6;
+
     /** Largura de caractere usada quando não há como estimar (fonte de ~10pt monoespaçada). */
     private const DEFAULT_CHAR_WIDTH = 6.0;
 
@@ -31,7 +35,9 @@ final class SongPdfReader
     public static function parse(string $binary, string $filename = ''): array
     {
         try {
-            $document = (new Parser)->parseContent($binary);
+            $config = new Config;
+            $config->setDataTmFontInfoHasToBeIncluded(true);
+            $document = (new Parser([], $config))->parseContent($binary);
             $pages = $document->getPages();
         } catch (Throwable) {
             throw new RuntimeException('Não foi possível ler este PDF. Ele pode estar protegido ou corrompido.');
@@ -69,13 +75,20 @@ final class SongPdfReader
     }
 
     /**
-     * @param  list<array{0: array<int, string|float>, 1: string}>  $items
+     * @param  list<array{0: array<int, string|float>, 1: string, 2?: string, 3?: string|float}>  $items  [Tm, texto, fonte, tamanho]
      */
     public static function pageText(array $items): string
     {
         $chunks = [];
+        $fontSizes = [];
 
-        foreach ($items as [$tm, $text]) {
+        foreach ($items as $item) {
+            [$tm, $text] = $item;
+
+            if (isset($item[3]) && (float) $item[3] > 0) {
+                $fontSizes[] = (float) $item[3] * abs((float) ($tm[0] ?? 1) ?: 1);
+            }
+
             $text = str_replace(["\r", "\n", "\t", "\u{00A0}"], ['', '', '    ', ' '], (string) $text);
 
             if ($text !== '' && isset($tm[4], $tm[5])) {
@@ -88,7 +101,7 @@ final class SongPdfReader
         }
 
         $lines = self::groupLines($chunks);
-        $charWidth = self::estimateCharWidth($lines);
+        $charWidth = self::charWidth($lines, $fontSizes);
         $left = self::leftMargin($lines);
         $out = [];
 
@@ -163,23 +176,32 @@ final class SongPdfReader
     }
 
     /**
-     * Estima a largura de um caractere pela distância entre trechos vizinhos na mesma linha:
-     * (x do próximo − x do atual) / caracteres do atual. Trechos colados dão a medida exata;
-     * os separados por espaço dão valores maiores, por isso usa um percentil baixo.
+     * Largura de um caractere: pelo tamanho de fonte mais comum (fonte monoespaçada), quando o PDF informa;
+     * senão, pela distância entre trechos vizinhos assumindo um espaço entre eles: (x seguinte − x) / (caracteres + 1).
      *
      * @param  list<list<array{x: float, y: float, text: string}>>  $lines
+     * @param  list<float>  $fontSizes
      */
-    private static function estimateCharWidth(array $lines): float
+    private static function charWidth(array $lines, array $fontSizes): float
     {
+        if ($fontSizes !== []) {
+            $sizes = array_count_values(array_map(fn (float $s) => (string) round($s, 1), $fontSizes));
+            arsort($sizes);
+            $size = (float) array_key_first($sizes);
+
+            if ($size >= 4 && $size <= 40) {
+                return $size * self::MONO_ADVANCE;
+            }
+        }
+
         $ratios = [];
 
         foreach ($lines as $line) {
             for ($i = 0; $i < count($line) - 1; $i++) {
-                $length = mb_strlen($line[$i]['text']);
                 $distance = $line[$i + 1]['x'] - $line[$i]['x'];
 
-                if ($length >= 1 && $distance > 0) {
-                    $ratios[] = $distance / $length;
+                if ($distance > 0) {
+                    $ratios[] = $distance / (mb_strlen($line[$i]['text']) + 1);
                 }
             }
         }
@@ -192,7 +214,7 @@ final class SongPdfReader
 
         sort($ratios);
 
-        return $ratios[(int) floor(count($ratios) * 0.2)];
+        return $ratios[intdiv(count($ratios), 2)];
     }
 
     private static function detectKey(string $content): ?string

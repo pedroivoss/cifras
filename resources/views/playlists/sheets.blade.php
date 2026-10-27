@@ -33,7 +33,7 @@
                         <li class="flex gap-2">
                             <span class="w-5 text-right text-slate-400 tabular-nums">{{ $entry['number'] }}.</span>
                             <a href="#m{{ $entry['number'] }}" class="min-w-0 flex-1 truncate hover:text-indigo-600 hover:underline">{{ $entry['song']->title }}</a>
-                            @if ($entry['sheet']['key'])<span class="font-semibold text-indigo-700">{{ $entry['sheet']['key'] }}</span>@endif
+                            @if ($entry['sheet']['key'])<span class="font-semibold text-chord">{{ $entry['sheet']['key'] }}</span>@endif
                         </li>
                     @endforeach
                 </ol>
