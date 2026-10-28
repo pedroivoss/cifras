@@ -75,4 +75,12 @@
     .sheet.wrap {
         white-space: pre-wrap;
     }
+
+    /* Leituras, salmo e avisos da missa (texto com **negrito** e *itálico*). */
+    .reading {
+        @apply text-[15px] leading-relaxed text-slate-700 sm:text-justify;
+    }
+    .reading p + p {
+        @apply mt-3;
+    }
 }

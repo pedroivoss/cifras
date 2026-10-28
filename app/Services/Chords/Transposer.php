@@ -11,16 +11,18 @@ use App\Models\SongVersion;
 final class Transposer
 {
     /**
+     * @param  ?string  $content  cifra no lugar da versão (ajuste feito só num item de playlist), no mesmo tom escrito
      * @return array{key: ?string, sounding_key: ?string, capo: int, semitones: int, lines: list<array{type: string, text: string}>, text: string}
      */
-    public static function forVersion(SongVersion $version, int $semitones = 0, ?int $capo = null): array
+    public static function forVersion(SongVersion $version, int $semitones = 0, ?int $capo = null, ?string $content = null): array
     {
         $semitones = Key::normalize($semitones);
         $capo ??= $version->capo;
-        $baseKey = $version->original_key ?: self::guessKey($version->content);
+        $content ??= $version->content;
+        $baseKey = $version->original_key ?: self::guessKey($content);
         $targetKey = $baseKey ? Key::transpose($baseKey, $semitones) : null;
-        $preferFlats = $targetKey ? Key::prefersFlats($targetKey) : ChordSheet::detectPrefersFlats($version->content);
-        $lines = ChordSheet::render($version->content, $semitones, $preferFlats)['lines'];
+        $preferFlats = $targetKey ? Key::prefersFlats($targetKey) : ChordSheet::detectPrefersFlats($content);
+        $lines = ChordSheet::render($content, $semitones, $preferFlats)['lines'];
 
         return [
             'key' => $version->original_key ? $targetKey : null,

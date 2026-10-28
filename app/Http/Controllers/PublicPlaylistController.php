@@ -6,6 +6,7 @@ use App\Http\Requests\PdfExportRequest;
 use App\Models\Playlist;
 use App\Services\Pdf\SongbookPdf;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as BaseResponse;
 
 /**
@@ -30,7 +31,12 @@ class PublicPlaylistController extends Controller
 
         abort_unless($playlist->allow_public_pdf, 404);
 
-        return SongbookPdf::response(SongbookPdf::forPlaylist($playlist, $request->options()), $playlist->pdfFilename(), $request->boolean('inline'));
+        return SongbookPdf::response(SongbookPdf::forPlaylist($playlist, $request->options($playlist->hasCustomCover())), $playlist->pdfFilename(), $request->boolean('inline'));
+    }
+
+    public function cover(string $token): BinaryFileResponse
+    {
+        return PlaylistController::coverResponse($this->resolve($token));
     }
 
     private function resolve(string $token): Playlist

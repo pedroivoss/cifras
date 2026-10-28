@@ -145,14 +145,23 @@ Alpine.data('playlistEditor', ({ items, reorderUrl, itemUrl }) => ({
         await this.update(item, { semitones }, (saved) => (saved.key ? 'Tom salvo: ' + saved.key : 'Tom salvo'));
     },
 
+    /** Número da música na lista; textos (leituras, avisos) não são numerados. */
+    songNumber(index) {
+        if (this.items[index].kind !== 'song') {
+            return '';
+        }
+        return this.items.slice(0, index + 1).filter((i) => i.kind === 'song').length;
+    },
+
     async remove(item) {
-        if (!(await confirmAction('Remover “' + item.title + '” da playlist?', 'A música continua na biblioteca.', 'Remover'))) {
+        const detail = item.kind === 'song' ? 'A música continua na biblioteca.' : 'O texto será excluído desta playlist.';
+        if (!(await confirmAction('Remover “' + item.title + '” da playlist?', detail, 'Remover'))) {
             return;
         }
         try {
             await api(itemUrl.replace('__ID__', item.id), 'DELETE');
             this.items = this.items.filter((i) => i.id !== item.id);
-            toast('Removida da playlist');
+            toast('Removido da playlist');
         } catch (e) {
             toast(e.message, 'error');
         }

@@ -24,4 +24,15 @@ class PlaylistItemFactory extends Factory
             'semitones' => 0,
         ];
     }
+
+    /** Item de texto da missa (leitura, salmo, aviso), sem música. */
+    public function text(string $title = 'Primeira Leitura', ?string $body = null): static
+    {
+        return $this->state(fn () => [
+            'kind' => PlaylistItem::KIND_TEXT,
+            'song_id' => null,
+            'title' => $title,
+            'body' => $body ?? fake()->paragraph(),
+        ]);
+    }
 }

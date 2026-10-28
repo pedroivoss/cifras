@@ -2,6 +2,7 @@
     $m = $options['margin'];
     $bottom = max($m, 14);
     $first = true;
+    $songCount = count(array_filter($entries, fn ($e) => $e['kind'] === 'song'));
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -17,6 +18,13 @@
         .cover h1 { font-size: 26pt; margin: 0 0 8pt; }
         .cover .meta { font-size: 12pt; color: #4b5563; }
         .cover .desc { font-size: 10pt; color: #6b7280; margin-top: 14pt; }
+        .mass-cover { text-align: center; }
+        .mass-cover h1 { font-family: 'DejaVu Serif', serif; font-size: 26pt; margin: 0 0 14pt; text-align: left; }
+        .mass-cover img { max-width: 100%; max-height: {{ $options['orientation'] === 'landscape' ? 300 : 520 }}pt; }
+        .mass-cover .quote { font-family: 'DejaVu Serif', serif; font-size: 15pt; font-weight: bold; font-style: italic; margin-top: 14pt; }
+        .text-head { font-size: 17pt; font-weight: bold; color: #374151; margin: 0 0 10pt; page-break-after: avoid; }
+        .text-body { font-size: 11pt; color: #4b5563; line-height: 1.6; text-align: justify; }
+        .text-body p { margin: 0 0 8pt; }
         .toc h2 { font-size: 15pt; margin: 0 0 10pt; }
         .toc table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
         .toc td { padding: 3pt 0; border-bottom: 0.5pt solid #e5e7eb; }
@@ -39,11 +47,18 @@
     </style>
 </head>
 <body>
-    @if ($options['cover'] && $playlist)
+    @if ($options['cover'] && $playlist && $playlist->hasCustomCover())
+        <div class="mass-cover">
+            <h1>{{ $playlist->coverHeading() }}</h1>
+            @if ($image = $playlist->coverImageDataUri())<img src="{{ $image }}" alt="">@endif
+            @if ($playlist->cover_quote)<div class="quote">{!! nl2br(e($playlist->cover_quote)) !!}</div>@endif
+        </div>
+        @php($first = false)
+    @elseif ($options['cover'] && $playlist)
         <div class="cover">
             <h1>{{ $playlist->name }}</h1>
             <div class="meta">
-                {{ count($entries) }} {{ count($entries) === 1 ? 'música' : 'músicas' }}@if ($playlist->event_date) · {{ $playlist->event_date->format('d/m/Y') }}@endif
+                {{ $songCount }} {{ $songCount === 1 ? 'música' : 'músicas' }}@if ($playlist->event_date) · {{ $playlist->event_date->format('d/m/Y') }}@endif
             </div>
             @if ($playlist->description)<div class="desc">{{ $playlist->description }}</div>@endif
         </div>
@@ -55,6 +70,10 @@
             <h2>Sumário</h2>
             <table>
                 @foreach ($entries as $entry)
+                    @if ($entry['kind'] === 'text')
+                        <tr><td class="n"></td><td colspan="2" style="color:#4b5563;font-style:italic">{{ $entry['title'] }}</td></tr>
+                        @continue
+                    @endif
                     <tr>
                         <td class="n">{{ $entry['number'] }}.</td>
                         <td>{{ $entry['song']->title }}@if ($entry['song']->artist) <span style="color:#6b7280">— {{ $entry['song']->artist }}</span>@endif</td>
@@ -73,6 +92,15 @@
             <div class="flow-gap"></div>
         @endif
         @php($first = false)
+
+        @if ($entry['kind'] === 'text')
+            <div class="text">
+                @if ($entry['title'] !== '')<div class="text-head">{{ $entry['title'] }}</div>@endif
+                @if ($options['notes'] && $entry['notes'])<div class="notes">{{ implode(' · ', $entry['notes']) }}</div>@endif
+                <div class="text-body">{{ $entry['html'] }}</div>
+            </div>
+            @continue
+        @endif
 
         <div class="song">
             <div class="song-head">

@@ -3,6 +3,7 @@
 namespace App\Services\Docx;
 
 use App\Models\Playlist;
+use App\Models\PlaylistItem;
 use App\Models\SongVersion;
 use App\Services\Chords\ChordSheet;
 use App\Services\Pdf\SongbookPdf;
@@ -28,9 +29,15 @@ final class SongbookDocx
 
     private const SANS_FONT = 'Arial';
 
+    private const SERIF_FONT = 'Times New Roman';
+
+    private const EMU_PER_TWIP = 635;
+
     private const CHORD_COLOR = 'D97757';
 
-    private const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    private const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        .' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        .' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
 
     /**
      * @param  array{orientation: string, font_size: float, margin: int, cover: bool, toc: bool, page_break: bool, lyrics: bool, notes: bool}  $options
@@ -67,14 +74,15 @@ final class SongbookDocx
     private static function build(string $title, ?Playlist $playlist, array $entries, array $options): string
     {
         $page = self::page($options);
-        $body = self::body($playlist, $entries, $options, $page);
+        $image = $options['cover'] && $playlist ? self::coverImage($playlist) : null;
+        $body = self::body($playlist, $entries, $options, $page, $image);
 
         $parts = [
-            '[Content_Types].xml' => self::contentTypes(),
+            '[Content_Types].xml' => self::contentTypes($image),
             '_rels/.rels' => self::packageRels(),
             'docProps/core.xml' => self::coreProperties($title),
             'docProps/app.xml' => self::appProperties(),
-            'word/_rels/document.xml.rels' => self::documentRels(),
+            'word/_rels/document.xml.rels' => self::documentRels($image),
             'word/document.xml' => self::document($body, $page),
             'word/styles.xml' => self::styles(),
             'word/settings.xml' => self::settings(),
@@ -88,6 +96,10 @@ final class SongbookDocx
             throw new RuntimeException('Não foi possível gerar o arquivo do Word.');
         }
 
+        if ($image) {
+            $parts['word/media/cover.'.$image['extension']] = $image['bytes'];
+        }
+
         foreach ($parts as $name => $xml) {
             $zip->addFromString($name, $xml);
         }
@@ -97,6 +109,26 @@ final class SongbookDocx
         @unlink($path);
 
         return $docx;
+    }
+
+    /**
+     * @return ?array{bytes: string, extension: string, width: int, height: int}
+     */
+    private static function coverImage(Playlist $playlist): ?array
+    {
+        $path = $playlist->coverImagePath();
+        $size = $path ? @getimagesize($path) : false;
+
+        if (! $size || ! in_array($size[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
+            return null;
+        }
+
+        return [
+            'bytes' => (string) file_get_contents($path),
+            'extension' => $size[2] === IMAGETYPE_PNG ? 'png' : 'jpeg',
+            'width' => $size[0],
+            'height' => $size[1],
+        ];
     }
 
     /**
@@ -127,14 +159,28 @@ final class SongbookDocx
      * @param  list<array<string, mixed>>  $entries
      * @param  array<string, mixed>  $options
      * @param  array<string, int|bool>  $page
+     * @param  ?array{bytes: string, extension: string, width: int, height: int}  $image
      */
-    private static function body(?Playlist $playlist, array $entries, array $options, array $page): string
+    private static function body(?Playlist $playlist, array $entries, array $options, array $page, ?array $image): string
     {
         $xml = '';
         $first = true;
 
-        if ($options['cover'] && $playlist) {
-            $count = count($entries).' '.(count($entries) === 1 ? 'música' : 'músicas');
+        if ($options['cover'] && $playlist?->hasCustomCover()) {
+            $xml .= self::paragraph(self::run($playlist->coverHeading(), ['size' => 52, 'bold' => true, 'font' => self::SERIF_FONT]), ['after' => 280]);
+
+            if ($image) {
+                $xml .= self::paragraph(self::drawing($image, $page), ['jc' => 'center']);
+            }
+
+            if ($playlist->cover_quote) {
+                $xml .= self::paragraph(self::runs($playlist->cover_quote, ['size' => 30, 'bold' => true, 'italic' => true, 'font' => self::SERIF_FONT]), ['jc' => 'center', 'before' => 280]);
+            }
+
+            $first = false;
+        } elseif ($options['cover'] && $playlist) {
+            $songs = count(array_filter($entries, fn (array $e) => $e['kind'] === PlaylistItem::KIND_SONG));
+            $count = $songs.' '.($songs === 1 ? 'música' : 'músicas');
             $meta = $count.($playlist->event_date ? ' · '.$playlist->event_date->format('d/m/Y') : '');
 
             $xml .= self::paragraph(self::run($playlist->name, ['size' => 52, 'bold' => true]), [
@@ -156,11 +202,70 @@ final class SongbookDocx
         }
 
         foreach ($entries as $entry) {
-            $xml .= self::song($entry, $options, $first ? null : ($options['page_break'] ? 'page' : 'gap'));
+            $separator = $first ? null : ($options['page_break'] ? 'page' : 'gap');
+            $xml .= $entry['kind'] === PlaylistItem::KIND_TEXT ? self::text($entry, $options, $separator) : self::song($entry, $options, $separator);
             $first = false;
         }
 
         return $xml;
+    }
+
+    /**
+     * Leitura, salmo ou aviso: título e parágrafos justificados, com negrito/itálico da marcação.
+     *
+     * @param  array<string, mixed>  $entry
+     * @param  array<string, mixed>  $options
+     * @param  'page'|'gap'|null  $separator
+     */
+    private static function text(array $entry, array $options, ?string $separator): string
+    {
+        $xml = self::paragraph($entry['title'] === '' ? '' : self::run($entry['title']), [
+            'style' => 'TextTitle',
+            'page_break' => $separator === 'page',
+            'before' => $separator === 'gap' ? 360 : null,
+        ]);
+
+        if ($options['notes'] && $entry['notes']) {
+            $xml .= self::paragraph(self::runs(implode(' · ', $entry['notes'])), ['style' => 'SongNotes']);
+        }
+
+        // Cada linha vira um parágrafo: no Word, linha justificada que termina em quebra manual (<w:br/>) fica esticada.
+        foreach ($entry['paragraphs'] as $paragraph) {
+            $last = count($paragraph) - 1;
+
+            foreach ($paragraph as $index => $runs) {
+                $xml .= self::paragraph(implode('', array_map(
+                    fn (array $run) => self::run($run['text'], ['bold' => $run['bold'], 'italic' => $run['italic']]),
+                    $runs,
+                )), ['style' => 'Reading', 'after' => $index < $last ? 0 : null]);
+            }
+        }
+
+        return $xml;
+    }
+
+    /**
+     * Imagem da capa embutida no documento, ajustada à largura útil e a ~60% da altura.
+     *
+     * @param  array{bytes: string, extension: string, width: int, height: int}  $image
+     * @param  array<string, int|bool>  $page
+     */
+    private static function drawing(array $image, array $page): string
+    {
+        $maxWidth = $page['usable_width'] * self::EMU_PER_TWIP;
+        $maxHeight = (int) ($page['usable_height'] * 0.6) * self::EMU_PER_TWIP;
+        $scale = min($maxWidth / $image['width'], $maxHeight / $image['height']);
+        $cx = (int) round($image['width'] * $scale);
+        $cy = (int) round($image['height'] * $scale);
+
+        return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+            .'<wp:extent cx="'.$cx.'" cy="'.$cy.'"/><wp:docPr id="1" name="Capa"/>'
+            .'<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'
+            .'<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            .'<pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="cover.'.$image['extension'].'"/><pic:cNvPicPr/></pic:nvPicPr>'
+            .'<pic:blipFill><a:blip r:embed="rIdCover"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+            .'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.$cx.'" cy="'.$cy.'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+            .'</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
     }
 
     /**
@@ -225,6 +330,15 @@ final class SongbookDocx
         $rows = '';
 
         foreach ($entries as $entry) {
+            if ($entry['kind'] === PlaylistItem::KIND_TEXT) {
+                $rows .= '<w:tr><w:trPr><w:cantSplit/></w:trPr>'
+                    .'<w:tc><w:tcPr><w:tcW w:w="'.$columns[0].'" w:type="dxa"/>'.$border.'</w:tcPr>'.self::paragraph('', ['after' => 60, 'before' => 60]).'</w:tc>'
+                    .'<w:tc><w:tcPr><w:tcW w:w="'.($columns[1] + $columns[2]).'" w:type="dxa"/><w:gridSpan w:val="2"/>'.$border.'</w:tcPr>'
+                    .self::paragraph(self::run($entry['title'], ['italic' => true, 'color' => '4B5563']), ['after' => 60, 'before' => 60]).'</w:tc></w:tr>';
+
+                continue;
+            }
+
             $song = $entry['song'];
             $key = $entry['sounding_key'] ?? $entry['key'];
             $cells = [
@@ -292,12 +406,14 @@ final class SongbookDocx
     }
 
     /**
-     * @param  array{style?: string, size?: int, bold?: bool, color?: string}  $props
+     * @param  array{style?: string, font?: string, size?: int, bold?: bool, italic?: bool, color?: string}  $props
      */
     private static function run(string $text, array $props = []): string
     {
         $rPr = (isset($props['style']) ? '<w:rStyle w:val="'.$props['style'].'"/>' : '')
+            .(isset($props['font']) ? '<w:rFonts w:ascii="'.$props['font'].'" w:hAnsi="'.$props['font'].'" w:cs="'.$props['font'].'"/>' : '')
             .(($props['bold'] ?? false) ? '<w:b/><w:bCs/>' : '')
+            .(($props['italic'] ?? false) ? '<w:i/><w:iCs/>' : '')
             .(isset($props['color']) ? '<w:color w:val="'.$props['color'].'"/>' : '')
             .(isset($props['size']) ? '<w:sz w:val="'.$props['size'].'"/><w:szCs w:val="'.$props['size'].'"/>' : '');
 
@@ -307,7 +423,7 @@ final class SongbookDocx
     /**
      * Texto com quebras de linha (observações, descrição) em runs separados por <w:br/>.
      *
-     * @param  array{style?: string, size?: int, bold?: bool, color?: string}  $props
+     * @param  array{style?: string, font?: string, size?: int, bold?: bool, italic?: bool, color?: string}  $props
      */
     private static function runs(string $text, array $props = []): string
     {
@@ -379,6 +495,10 @@ final class SongbookDocx
             .'<w:pPr><w:keepLines/><w:spacing w:after="0" w:line="300" w:lineRule="auto"/></w:pPr><w:rPr>'.$mono.'<w:noProof/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:customStyle="1" w:styleId="SongSection"><w:name w:val="Seção"/><w:basedOn w:val="Normal"/><w:next w:val="Sheet"/><w:qFormat/>'
             .'<w:pPr><w:keepNext/><w:spacing w:before="80" w:after="0"/></w:pPr><w:rPr><w:b/><w:bCs/><w:caps/><w:color w:val="6B7280"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:customStyle="1" w:styleId="TextTitle"><w:name w:val="Título do texto"/><w:basedOn w:val="Normal"/><w:next w:val="Reading"/><w:qFormat/>'
+            .'<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:after="200"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:bCs/><w:color w:val="374151"/><w:sz w:val="34"/><w:szCs w:val="34"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:customStyle="1" w:styleId="Reading"><w:name w:val="Leitura"/><w:basedOn w:val="Normal"/><w:qFormat/>'
+            .'<w:pPr><w:spacing w:after="160" w:line="360" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr><w:rPr><w:color w:val="4B5563"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:style>'
             .'<w:style w:type="character" w:customStyle="1" w:styleId="Chord"><w:name w:val="Acorde"/><w:qFormat/><w:rPr><w:b/><w:bCs/><w:noProof/><w:color w:val="'.self::CHORD_COLOR.'"/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Footer"><w:name w:val="footer"/><w:basedOn w:val="Normal"/><w:rPr><w:color w:val="8C8C8C"/><w:sz w:val="14"/><w:szCs w:val="14"/></w:rPr></w:style>'
             .'</w:styles>');
@@ -390,13 +510,17 @@ final class SongbookDocx
             .'<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>');
     }
 
-    private static function contentTypes(): string
+    /**
+     * @param  ?array{extension: string}  $image
+     */
+    private static function contentTypes(?array $image): string
     {
         $base = 'application/vnd.openxmlformats-officedocument.wordprocessingml.';
 
         return self::xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
             .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
             .'<Default Extension="xml" ContentType="application/xml"/>'
+            .($image ? '<Default Extension="'.$image['extension'].'" ContentType="image/'.$image['extension'].'"/>' : '')
             .'<Override PartName="/word/document.xml" ContentType="'.$base.'document.main+xml"/>'
             .'<Override PartName="/word/styles.xml" ContentType="'.$base.'styles+xml"/>'
             .'<Override PartName="/word/settings.xml" ContentType="'.$base.'settings+xml"/>'
@@ -415,12 +539,16 @@ final class SongbookDocx
             .'</Relationships>');
     }
 
-    private static function documentRels(): string
+    /**
+     * @param  ?array{extension: string}  $image
+     */
+    private static function documentRels(?array $image): string
     {
         $type = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
 
         return self::xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rIdStyles" Type="'.$type.'styles" Target="styles.xml"/>'
+            .($image ? '<Relationship Id="rIdCover" Type="'.$type.'image" Target="media/cover.'.$image['extension'].'"/>' : '')
             .'<Relationship Id="rIdSettings" Type="'.$type.'settings" Target="settings.xml"/>'
             .'<Relationship Id="rIdFooter" Type="'.$type.'footer" Target="footer1.xml"/>'
             .'</Relationships>');

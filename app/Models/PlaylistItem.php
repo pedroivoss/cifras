@@ -7,10 +7,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['song_id', 'song_version_id', 'position', 'semitones', 'capo', 'notes'])]
+#[Fillable(['kind', 'song_id', 'song_version_id', 'position', 'semitones', 'capo', 'notes', 'title', 'body', 'content'])]
 class PlaylistItem extends Model
 {
     use HasFactory;
+
+    public const KIND_SONG = 'song';
+
+    /** Texto livre da missa (leitura, salmo, aviso): sem música, não entra na numeração. */
+    public const KIND_TEXT = 'text';
+
+    /** Campos copiados ao duplicar a playlist. */
+    public const COPYABLE = ['kind', 'song_id', 'song_version_id', 'position', 'semitones', 'capo', 'notes', 'title', 'body', 'content'];
+
+    protected $attributes = ['kind' => self::KIND_SONG];
 
     protected $touches = ['playlist'];
 
@@ -32,6 +42,23 @@ class PlaylistItem extends Model
     public function version(): BelongsTo
     {
         return $this->belongsTo(SongVersion::class, 'song_version_id');
+    }
+
+    public function isText(): bool
+    {
+        return $this->kind === self::KIND_TEXT;
+    }
+
+    /** A cifra foi ajustada só nesta playlist (a música da biblioteca não muda). */
+    public function hasCustomContent(): bool
+    {
+        return $this->content !== null;
+    }
+
+    /** Cifra usada neste item: o ajuste da playlist ou o conteúdo da versão. */
+    public function sheetContent(): string
+    {
+        return $this->content ?? $this->sheetVersion()->content;
     }
 
     /** Versão usada na exibição/PDF: a escolhida no item ou, na falta, a primeira da música. */

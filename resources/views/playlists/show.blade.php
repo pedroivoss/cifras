@@ -23,29 +23,43 @@
             'itemUrl' => route('playlist-items.update', '__ID__'),
         ]))" class="min-w-0">
             <div class="mb-3 flex items-center justify-between gap-3">
-                <h2 class="font-semibold">Músicas <span class="text-slate-400" x-text="'(' + items.length + ')'"></span></h2>
-                <div class="flex items-center gap-3">
+                <h2 class="font-semibold">Itens <span class="text-slate-400" x-text="'(' + items.length + ')'"></span></h2>
+                <div class="flex flex-wrap items-center justify-end gap-2">
                     <span x-cloak x-show="saving" class="text-xs text-slate-500" role="status">Salvando…</span>
+                    <a href="{{ route('playlists.texts.create', $playlist) }}" class="btn-secondary" data-testid="add-text"><x-icon name="book" class="size-4" /> Adicionar texto</a>
                     <button type="button" class="btn-primary" @click="$dispatch('open-add')"><x-icon name="plus" class="size-4" /> Adicionar músicas</button>
                 </div>
             </div>
 
             <div x-cloak x-show="items.length === 0">
-                <x-empty title="Playlist vazia" icon="list">Clique em “Adicionar músicas” para montar o repertório.</x-empty>
+                <x-empty title="Playlist vazia" icon="list">Adicione músicas e, se quiser, textos da missa (leituras, salmo, evangelho, avisos).</x-empty>
             </div>
 
             <ol x-ref="list" class="space-y-2" data-testid="playlist-items">
                 <template x-for="(item, index) in items" :key="item.id">
                     <li class="card flex items-center gap-2 p-2 pr-3 sm:gap-3" :data-item-id="item.id" data-testid="playlist-item">
                         <button type="button" data-handle class="cursor-grab touch-none rounded-md p-1 text-slate-400 sm:p-2 hover:bg-slate-100 active:cursor-grabbing" aria-label="Arrastar para reordenar"><x-icon name="grip" /></button>
-                        <span class="w-5 text-right text-sm font-semibold text-slate-400 tabular-nums sm:w-6" x-text="index + 1"></span>
+                        <span class="w-5 text-right text-sm font-semibold text-slate-400 tabular-nums sm:w-6" x-text="songNumber(index)"></span>
+
+                        <template x-if="item.kind === 'text'">
+                            <a :href="item.edit_url" class="flex min-w-0 flex-1 items-center gap-2 py-1" data-testid="text-item">
+                                <x-icon name="book" class="size-5 text-indigo-500" />
+                                <span class="min-w-0">
+                                    <span class="block truncate font-medium" x-text="item.title" data-testid="item-title"></span>
+                                    <span class="block truncate text-sm text-slate-500" x-text="item.excerpt || 'Sem texto — clique para escrever'"></span>
+                                </span>
+                            </a>
+                        </template>
+
+                        <template x-if="item.kind === 'song'">
+                        <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                         <div class="min-w-0 flex-1 py-1">
                             <a :href="item.url" class="block">
                                 <span class="block truncate font-medium" x-text="item.title" data-testid="item-title"></span>
                                 <span class="block truncate text-sm text-slate-500" x-text="item.artist || '—'"></span>
                             </a>
                             <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                                <template x-if="item.versions.length > 1">
+                                <template x-if="item.versions.length > 1 && !item.custom">
                                     <select class="input w-auto py-0.5 pr-7 pl-2 text-xs" :aria-label="'Versão de ' + item.title" data-testid="item-version"
                                             @change="update(item, { song_version_id: parseInt($event.target.value) }, 'Versão salva')">
                                         <template x-for="v in item.versions" :key="v.id">
@@ -60,6 +74,8 @@
                                     </template>
                                 </select>
                                 <span x-cloak x-show="item.sounding_key" class="text-xs font-medium text-amber-700" x-text="'soa em ' + item.sounding_key" data-testid="item-sounding"></span>
+                                <span x-cloak x-show="item.custom" class="chip bg-amber-100 text-amber-800" data-testid="item-custom">Ajustada nesta missa</span>
+                                <a :href="item.edit_url" class="text-xs text-indigo-600 hover:underline" data-testid="item-adjust">Ajustar nesta missa</a>
                             </div>
                         </div>
 
@@ -78,6 +94,8 @@
                             </template>
                             <button type="button" class="btn-ghost px-2 py-1 text-sm" :class="item.options && 'hidden sm:inline-flex'" @click="setSemitones(item, item.semitones + 1)" aria-label="Subir meio tom">+</button>
                         </div>
+                        </div>
+                        </template>
 
                         <div class="hidden shrink-0 flex-col sm:flex">
                             <button type="button" class="px-1 text-xs text-slate-400 hover:text-slate-700 disabled:opacity-30" :disabled="index === 0" @click="move(index, -1)" aria-label="Mover para cima">▲</button>
@@ -93,6 +111,9 @@
             {{-- Exportação PDF / Word (mesmas opções) --}}
             <form method="GET" action="{{ route('playlists.pdf', $playlist) }}" class="card space-y-3 p-4" data-testid="pdf-form">
                 <h2 class="flex items-center gap-2 font-semibold"><x-icon name="pdf" class="size-5 text-indigo-600" /> Exportar PDF ou Word</h2>
+                @if ($playlist->hasCustomCover())
+                    <p class="text-xs text-slate-500">Capa da missa configurada em <a href="{{ route('playlists.edit', $playlist) }}" class="text-indigo-600 hover:underline">Editar</a>.</p>
+                @endif
                 <div class="grid grid-cols-2 gap-2 text-sm">
                     <label class="label col-span-2 mb-0" for="orientation">Orientação (A4)</label>
                     <select id="orientation" name="orientation" class="input col-span-2">
@@ -114,7 +135,7 @@
                 </div>
                 <fieldset class="space-y-1.5 text-sm">
                     <legend class="sr-only">Opções</legend>
-                    @foreach ([['page_break', 'Cada música em nova página', true], ['cover', 'Capa', false], ['toc', 'Sumário', false], ['lyrics', 'Mostrar letras', true], ['notes', 'Mostrar observações', false]] as [$name, $label, $checked])
+                    @foreach ([['page_break', 'Cada item em nova página', true], ['cover', 'Capa', $playlist->hasCustomCover()], ['toc', 'Sumário', false], ['lyrics', 'Mostrar letras', true], ['notes', 'Mostrar observações', false]] as [$name, $label, $checked])
                         <label class="flex items-center gap-2">
                             <input type="hidden" name="{{ $name }}" value="0">
                             <input type="checkbox" name="{{ $name }}" value="1" class="rounded border-slate-300 text-indigo-600" @checked($checked)> {{ $label }}

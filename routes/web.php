@@ -22,6 +22,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('throttle:60,1')->group(function () {
     Route::get('/p/{token}', [PublicPlaylistController::class, 'show'])->name('public.playlist');
+    Route::get('/p/{token}/cover', [PublicPlaylistController::class, 'cover'])->name('public.playlist.cover');
     Route::get('/p/{token}/pdf', [PublicPlaylistController::class, 'pdf'])->middleware('throttle:10,1')->name('public.playlist.pdf');
 });
 
@@ -45,12 +46,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/playlists/{playlist}/sheets', [PlaylistController::class, 'sheets'])->name('playlists.sheets');
     Route::get('/playlists/{playlist}/pdf', [PlaylistController::class, 'pdf'])->middleware('throttle:30,1')->name('playlists.pdf');
     Route::get('/playlists/{playlist}/docx', [PlaylistController::class, 'docx'])->middleware('throttle:30,1')->name('playlists.docx');
+    Route::get('/playlists/{playlist}/cover', [PlaylistController::class, 'cover'])->name('playlists.cover');
+    Route::get('/playlists/{playlist}/texts/create', [PlaylistItemController::class, 'createText'])->name('playlists.texts.create');
+    Route::post('/playlists/{playlist}/texts', [PlaylistItemController::class, 'storeText'])->name('playlists.texts.store');
     Route::post('/playlists/{playlist}/duplicate', [PlaylistController::class, 'duplicate'])->name('playlists.duplicate');
     Route::patch('/playlists/{playlist}/share', [PlaylistController::class, 'share'])->name('playlists.share');
     Route::post('/playlists/{playlist}/share/regenerate', [PlaylistController::class, 'regenerateToken'])->name('playlists.share.regenerate');
     Route::post('/playlists/{playlist}/items', [PlaylistItemController::class, 'store'])->name('playlists.items.store');
     Route::post('/playlists/{playlist}/items/reorder', [PlaylistItemController::class, 'reorder'])->name('playlists.items.reorder');
     Route::patch('/playlist-items/{item}', [PlaylistItemController::class, 'update'])->name('playlist-items.update');
+    Route::get('/playlist-items/{item}/edit', [PlaylistItemController::class, 'edit'])->name('playlist-items.edit');
+    Route::put('/playlist-items/{item}/content', [PlaylistItemController::class, 'updateContent'])->name('playlist-items.content');
     Route::delete('/playlist-items/{item}', [PlaylistItemController::class, 'destroy'])->name('playlist-items.destroy');
     Route::resource('playlists', PlaylistController::class);
 

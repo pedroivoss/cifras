@@ -3,9 +3,11 @@
 namespace App\Services\Pdf;
 
 use App\Models\Playlist;
+use App\Models\PlaylistItem;
 use App\Models\SongVersion;
 use App\Services\Chords\ChordSheet;
 use App\Services\Chords\Transposer;
+use App\Support\RichText;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Barryvdh\DomPDF\PDF as DomPdf;
 use Illuminate\Http\Response;
@@ -32,7 +34,7 @@ final class SongbookPdf
     }
 
     /**
-     * Entradas do PDF exatamente na ordem e nos tons salvos.
+     * Entradas do PDF exatamente na ordem e nos tons salvos. Músicas são numeradas; textos (leituras, avisos) não.
      *
      * @param  array{orientation: string, font_size: float, margin: int, cover: bool, toc: bool, page_break: bool, lyrics: bool, notes: bool}  $options
      * @return list<array<string, mixed>>
@@ -40,15 +42,36 @@ final class SongbookPdf
     public static function playlistEntries(Playlist $playlist, array $options): array
     {
         $playlist->loadMissing(['items.song.versions', 'items.version']);
+        $number = 0;
 
-        return $playlist->items->values()->map(fn ($item, $index) => self::entry(
-            $item->sheetVersion(),
-            $item->semitones,
-            $item->effectiveCapo(),
-            $index + 1,
-            $item->notes,
-            $options,
-        ))->all();
+        return $playlist->items->values()->map(function (PlaylistItem $item) use (&$number, $options) {
+            return $item->isText()
+                ? self::textEntry($item)
+                : self::entry(
+                    $item->sheetVersion(),
+                    $item->semitones,
+                    $item->effectiveCapo(),
+                    ++$number,
+                    $item->notes,
+                    $options,
+                    $item->content,
+                );
+        })->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function textEntry(PlaylistItem $item): array
+    {
+        return [
+            'kind' => PlaylistItem::KIND_TEXT,
+            'number' => null,
+            'title' => (string) $item->title,
+            'paragraphs' => RichText::parse($item->body),
+            'html' => RichText::toHtml($item->body),
+            'notes' => array_values(array_filter([$item->notes])),
+        ];
     }
 
     /**
@@ -106,10 +129,10 @@ final class SongbookPdf
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
-    private static function entry(SongVersion $version, int $semitones, int $capo, ?int $number, ?string $itemNotes, array $options): array
+    private static function entry(SongVersion $version, int $semitones, int $capo, ?int $number, ?string $itemNotes, array $options, ?string $content = null): array
     {
         $song = $version->song;
-        $sheet = Transposer::forVersion($version, $semitones, $capo);
+        $sheet = Transposer::forVersion($version, $semitones, $capo, $content);
         $lines = $sheet['lines'];
 
         if (! $options['lyrics']) {
@@ -122,6 +145,7 @@ final class SongbookPdf
         [$fontSize, $wrap] = self::fitFontSize($lines, $options);
 
         return [
+            'kind' => PlaylistItem::KIND_SONG,
             'number' => $number,
             'song' => $song,
             'version_label' => $song->versions->count() > 1 ? $version->name : null,

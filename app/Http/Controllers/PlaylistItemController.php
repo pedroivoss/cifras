@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 class PlaylistItemController extends Controller
 {
@@ -49,6 +50,72 @@ class PlaylistItemController extends Controller
             ->with('success', $count === 1 ? 'Música adicionada à playlist.' : "{$count} músicas adicionadas.");
     }
 
+    /** Novo texto da missa (leitura, salmo, aviso…), entra no fim da lista; depois é só arrastar. */
+    public function createText(Playlist $playlist): View
+    {
+        Gate::authorize('update', $playlist);
+
+        return view('playlist-items.edit', ['playlist' => $playlist, 'item' => new PlaylistItem(['kind' => PlaylistItem::KIND_TEXT])]);
+    }
+
+    public function storeText(Request $request, Playlist $playlist): RedirectResponse
+    {
+        Gate::authorize('update', $playlist);
+
+        $playlist->items()->create([
+            ...$this->validateText($request),
+            'kind' => PlaylistItem::KIND_TEXT,
+            'position' => $playlist->nextPosition(),
+        ]);
+
+        return redirect()->route('playlists.show', $playlist)->with('success', 'Texto adicionado no fim da lista. Arraste para a posição desejada.');
+    }
+
+    /** Edita o texto ou ajusta a cifra deste item, sem alterar a música da biblioteca. */
+    public function edit(PlaylistItem $item): View
+    {
+        Gate::authorize('update', $item->playlist);
+
+        return view('playlist-items.edit', ['playlist' => $item->playlist, 'item' => $item]);
+    }
+
+    public function updateContent(Request $request, PlaylistItem $item): RedirectResponse
+    {
+        $playlist = $item->playlist;
+        Gate::authorize('update', $playlist);
+
+        if ($item->isText()) {
+            $item->update($this->validateText($request));
+
+            return redirect()->route('playlists.show', $playlist)->with('success', 'Texto salvo.');
+        }
+
+        if ($request->boolean('restore')) {
+            $item->update(['content' => null]);
+
+            return redirect()->route('playlists.show', $playlist)->with('success', 'Cifra original restaurada nesta playlist.');
+        }
+
+        $data = $request->validate(['content' => ['required', 'string', 'max:100000']], [], ['content' => 'cifra']);
+        $content = str_replace(["\r\n", "\r"], "\n", $data['content']);
+
+        // Igual à versão da biblioteca: não guarda cópia.
+        $item->update(['content' => $content === $item->sheetVersion()->content ? null : $content]);
+
+        return redirect()->route('playlists.show', $playlist)->with('success', 'Cifra ajustada só nesta playlist. A música na biblioteca não mudou.');
+    }
+
+    /**
+     * @return array{title: string, body: ?string}
+     */
+    private function validateText(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'body' => ['nullable', 'string', 'max:50000'],
+        ], [], ['title' => 'título', 'body' => 'texto']);
+    }
+
     public function update(Request $request, PlaylistItem $item): JsonResponse
     {
         Gate::authorize('update', $item->playlist);
@@ -78,7 +145,7 @@ class PlaylistItemController extends Controller
 
         return $request->expectsJson()
             ? response()->json(['deleted' => true])
-            : redirect()->route('playlists.show', $playlist)->with('success', 'Música removida da playlist.');
+            : redirect()->route('playlists.show', $playlist)->with('success', 'Item removido da playlist.');
     }
 
     public function reorder(Request $request, Playlist $playlist): JsonResponse
