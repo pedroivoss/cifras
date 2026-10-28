@@ -2,7 +2,7 @@
 
 namespace App\Services\Chords;
 
-use App\Models\Song;
+use App\Models\SongVersion;
 
 /**
  * Ponto único de transposição usado por telas, link público e PDF.
@@ -11,18 +11,21 @@ use App\Models\Song;
 final class Transposer
 {
     /**
-     * @return array{key: ?string, semitones: int, lines: list<array{type: string, text: string}>, text: string}
+     * @return array{key: ?string, sounding_key: ?string, capo: int, semitones: int, lines: list<array{type: string, text: string}>, text: string}
      */
-    public static function forSong(Song $song, int $semitones = 0): array
+    public static function forVersion(SongVersion $version, int $semitones = 0, ?int $capo = null): array
     {
         $semitones = Key::normalize($semitones);
-        $baseKey = $song->original_key ?: self::guessKey($song->content);
+        $capo ??= $version->capo;
+        $baseKey = $version->original_key ?: self::guessKey($version->content);
         $targetKey = $baseKey ? Key::transpose($baseKey, $semitones) : null;
-        $preferFlats = $targetKey ? Key::prefersFlats($targetKey) : ChordSheet::detectPrefersFlats($song->content);
-        $lines = ChordSheet::render($song->content, $semitones, $preferFlats)['lines'];
+        $preferFlats = $targetKey ? Key::prefersFlats($targetKey) : ChordSheet::detectPrefersFlats($version->content);
+        $lines = ChordSheet::render($version->content, $semitones, $preferFlats)['lines'];
 
         return [
-            'key' => $song->original_key ? $targetKey : null,
+            'key' => $version->original_key ? $targetKey : null,
+            'sounding_key' => $version->soundingKeyAfter($semitones, $capo),
+            'capo' => $capo,
             'semitones' => $semitones,
             'lines' => $lines,
             'text' => implode("\n", array_map(

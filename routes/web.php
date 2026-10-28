@@ -8,6 +8,7 @@ use App\Http\Controllers\PublicPlaylistController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SongController;
 use App\Http\Controllers\SongImportController;
+use App\Http\Controllers\SongVersionController;
 use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -32,13 +33,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/songs/import/paste', [SongImportController::class, 'paste'])->name('songs.import.paste');
     Route::post('/songs/import/file', [SongImportController::class, 'file'])->name('songs.import.file');
     Route::post('/songs/import/external', [SongImportController::class, 'external'])->middleware('throttle:10,1')->name('songs.import.external');
+    Route::get('/songs/{song}/versions/create', [SongVersionController::class, 'create'])->name('songs.versions.create');
+    Route::post('/songs/{song}/versions', [SongVersionController::class, 'store'])->name('songs.versions.store');
+    Route::delete('/songs/{song}/versions/{version}', [SongVersionController::class, 'destroy'])->name('songs.versions.destroy');
     Route::get('/songs/{song}/pdf', [SongController::class, 'pdf'])->middleware('throttle:30,1')->name('songs.pdf');
+    Route::get('/songs/{song}/docx', [SongController::class, 'docx'])->middleware('throttle:30,1')->name('songs.docx');
     Route::resource('songs', SongController::class);
 
     Route::resource('tags', TagController::class)->except(['create', 'show', 'edit']);
 
     Route::get('/playlists/{playlist}/sheets', [PlaylistController::class, 'sheets'])->name('playlists.sheets');
     Route::get('/playlists/{playlist}/pdf', [PlaylistController::class, 'pdf'])->middleware('throttle:30,1')->name('playlists.pdf');
+    Route::get('/playlists/{playlist}/docx', [PlaylistController::class, 'docx'])->middleware('throttle:30,1')->name('playlists.docx');
     Route::post('/playlists/{playlist}/duplicate', [PlaylistController::class, 'duplicate'])->name('playlists.duplicate');
     Route::patch('/playlists/{playlist}/share', [PlaylistController::class, 'share'])->name('playlists.share');
     Route::post('/playlists/{playlist}/share/regenerate', [PlaylistController::class, 'regenerateToken'])->name('playlists.share.regenerate');

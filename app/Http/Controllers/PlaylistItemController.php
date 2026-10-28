@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Playlist;
 use App\Models\PlaylistItem;
+use App\Models\Song;
 use App\Services\Chords\Key;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -22,14 +23,20 @@ class PlaylistItemController extends Controller
             'song_ids' => ['required', 'array', 'min:1', 'max:200'],
             'song_ids.*' => ['integer', Rule::exists('songs', 'id')->where('user_id', $request->user()->id)],
             'semitones' => ['nullable', 'integer', 'between:-11,11'],
+            'song_version_id' => ['nullable', 'integer'],
         ], ['song_ids.required' => 'Selecione pelo menos uma música.']);
 
-        DB::transaction(function () use ($playlist, $data) {
+        $songs = Song::with('versions:id,song_id,position')->findMany($data['song_ids'])->keyBy('id');
+
+        DB::transaction(function () use ($playlist, $data, $songs) {
             $position = $playlist->nextPosition();
 
             foreach ($data['song_ids'] as $songId) {
+                $versions = $songs[$songId]->versions;
+
                 $playlist->items()->create([
                     'song_id' => $songId,
+                    'song_version_id' => $versions->firstWhere('id', (int) ($data['song_version_id'] ?? 0))?->id ?? $versions->first()->id,
                     'position' => $position++,
                     'semitones' => Key::normalize((int) ($data['semitones'] ?? 0)),
                 ]);
@@ -48,6 +55,8 @@ class PlaylistItemController extends Controller
 
         $data = $request->validate([
             'semitones' => ['sometimes', 'integer', 'between:-11,11'],
+            'capo' => ['sometimes', 'nullable', 'integer', 'between:0,11'],
+            'song_version_id' => ['sometimes', 'integer', Rule::exists('song_versions', 'id')->where('song_id', $item->song_id)],
             'notes' => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
 
@@ -57,7 +66,7 @@ class PlaylistItemController extends Controller
 
         $item->update($data);
 
-        return response()->json(['id' => $item->id, 'semitones' => $item->semitones, 'key' => $item->load('song')->key()]);
+        return response()->json(PlaylistController::itemPayload($item->fresh(['song.versions', 'version'])));
     }
 
     public function destroy(Request $request, PlaylistItem $item): RedirectResponse|JsonResponse

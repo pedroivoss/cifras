@@ -128,20 +128,21 @@ Alpine.data('playlistEditor', ({ items, reorderUrl, itemUrl }) => ({
         await this.saveOrder();
     },
 
+    async update(item, changes, message = 'Salvo') {
+        try {
+            Object.assign(item, await api(itemUrl.replace('__ID__', item.id), 'PATCH', changes));
+            toast(typeof message === 'function' ? message(item) : message);
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    },
+
     async setSemitones(item, semitones) {
         semitones = ((semitones % 12) + 12) % 12;
         if (semitones > 6) {
             semitones -= 12;
         }
-        try {
-            const data = await api(itemUrl.replace('__ID__', item.id), 'PATCH', { semitones });
-            item.semitones = data.semitones;
-            item.key = data.key;
-            item.url = item.url.replace(/t=-?\d+/, 't=' + data.semitones);
-            toast(data.key ? 'Tom salvo: ' + data.key : 'Tom salvo');
-        } catch (e) {
-            toast(e.message, 'error');
-        }
+        await this.update(item, { semitones }, (saved) => (saved.key ? 'Tom salvo: ' + saved.key : 'Tom salvo'));
     },
 
     async remove(item) {

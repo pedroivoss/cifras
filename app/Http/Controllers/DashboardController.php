@@ -15,7 +15,7 @@ class DashboardController extends Controller
             'songCount' => $user->songs()->count(),
             'playlistCount' => $user->playlists()->count(),
             'tagCount' => $user->tags()->count(),
-            'latestSongs' => $user->songs()->with('tags')->latest()->limit(6)->get(),
+            'latestSongs' => $user->songs()->with(['tags', 'versions:id,song_id,original_key,position'])->latest()->limit(6)->get(),
             'latestPlaylists' => $user->playlists()->withCount('items')->latest('updated_at')->limit(6)->get(),
         ]);
     }

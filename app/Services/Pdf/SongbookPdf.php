@@ -3,7 +3,7 @@
 namespace App\Services\Pdf;
 
 use App\Models\Playlist;
-use App\Models\Song;
+use App\Models\SongVersion;
 use App\Services\Chords\ChordSheet;
 use App\Services\Chords\Transposer;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -39,11 +39,12 @@ final class SongbookPdf
      */
     public static function playlistEntries(Playlist $playlist, array $options): array
     {
-        $playlist->loadMissing('items.song');
+        $playlist->loadMissing(['items.song.versions', 'items.version']);
 
         return $playlist->items->values()->map(fn ($item, $index) => self::entry(
-            $item->song,
+            $item->sheetVersion(),
             $item->semitones,
+            $item->effectiveCapo(),
             $index + 1,
             $item->notes,
             $options,
@@ -53,12 +54,23 @@ final class SongbookPdf
     /**
      * @param  array{orientation: string, font_size: float, margin: int, cover: bool, toc: bool, page_break: bool, lyrics: bool, notes: bool}  $options
      */
-    public static function forSong(Song $song, int $semitones, array $options): DomPdf
+    public static function forVersion(SongVersion $version, int $semitones, array $options): DomPdf
     {
         $options['cover'] = false;
         $options['toc'] = false;
 
-        return self::build($song->title, null, [self::entry($song, $semitones, null, null, $options)], $options);
+        return self::build($version->song->title, null, [self::versionEntry($version, $semitones, $options)], $options);
+    }
+
+    /**
+     * Entrada de uma música avulsa (sem número na lista), no capo da própria versão.
+     *
+     * @param  array{orientation: string, font_size: float, margin: int, cover: bool, toc: bool, page_break: bool, lyrics: bool, notes: bool}  $options
+     * @return array<string, mixed>
+     */
+    public static function versionEntry(SongVersion $version, int $semitones, array $options): array
+    {
+        return self::entry($version, $semitones, $version->capo, null, null, $options);
     }
 
     public static function response(DomPdf $pdf, string $filename, bool $inline): Response
@@ -94,9 +106,10 @@ final class SongbookPdf
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
-    private static function entry(Song $song, int $semitones, ?int $number, ?string $itemNotes, array $options): array
+    private static function entry(SongVersion $version, int $semitones, int $capo, ?int $number, ?string $itemNotes, array $options): array
     {
-        $sheet = Transposer::forSong($song, $semitones);
+        $song = $version->song;
+        $sheet = Transposer::forVersion($version, $semitones, $capo);
         $lines = $sheet['lines'];
 
         if (! $options['lyrics']) {
@@ -111,7 +124,10 @@ final class SongbookPdf
         return [
             'number' => $number,
             'song' => $song,
+            'version_label' => $song->versions->count() > 1 ? $version->name : null,
             'key' => $sheet['key'],
+            'sounding_key' => $sheet['sounding_key'],
+            'capo' => $sheet['capo'],
             'semitones' => $sheet['semitones'],
             'blocks' => self::blocks($lines),
             'font_size' => $fontSize,

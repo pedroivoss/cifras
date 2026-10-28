@@ -62,6 +62,11 @@ class Playlist extends Model
         return 'repertorio-'.$this->slug().'.pdf';
     }
 
+    public function docxFilename(): string
+    {
+        return 'repertorio-'.$this->slug().'.docx';
+    }
+
     public function nextPosition(): int
     {
         return (int) $this->items()->max('position') + 1;

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PdfExportRequest;
 use App\Http\Requests\PlaylistRequest;
 use App\Models\Playlist;
+use App\Models\PlaylistItem;
 use App\Services\Chords\Key;
 use App\Services\Chords\Transposer;
+use App\Services\Docx\SongbookDocx;
 use App\Services\Pdf\SongbookPdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,32 +46,51 @@ class PlaylistController extends Controller
     {
         Gate::authorize('view', $playlist);
 
-        $playlist->load('items.song');
+        $playlist->load(['items.song.versions', 'items.version']);
 
         return view('playlists.show', [
             'playlist' => $playlist,
-            'items' => $playlist->items->map(fn ($item) => [
-                'id' => $item->id,
-                'song_id' => $item->song_id,
-                'title' => $item->song->title,
-                'artist' => $item->song->artist,
-                'original_key' => $item->song->original_key,
-                'semitones' => $item->semitones,
-                'key' => $item->key(),
-                'options' => $item->song->original_key
-                    ? collect(Key::options($item->song->original_key))->map(fn ($name, $s) => ['s' => $s, 'name' => $name])->values()
-                    : null,
-                'url' => route('songs.show', [$item->song_id, 't' => $item->semitones]),
-            ])->values(),
-            'library' => $request->user()->songs()->with('tags:id,name')->orderBy('title')->get(['id', 'title', 'artist', 'original_key'])
+            'items' => $playlist->items->map(fn (PlaylistItem $item) => self::itemPayload($item))->values(),
+            'library' => $request->user()->songs()
+                ->with(['tags:id,name', 'versions:id,song_id,name,original_key,position'])
+                ->orderBy('title')
+                ->get(['id', 'title', 'artist'])
                 ->map(fn ($song) => [
                     'id' => $song->id,
                     'title' => $song->title,
                     'artist' => $song->artist,
-                    'key' => $song->original_key,
+                    'key' => $song->versions->first()?->original_key,
+                    'versions' => $song->versions->count(),
                     'tags' => $song->tags->pluck('name')->join(', '),
                 ]),
         ]);
+    }
+
+    /**
+     * Dados de um item para o editor (Alpine) e para a resposta do PATCH.
+     *
+     * @return array<string, mixed>
+     */
+    public static function itemPayload(PlaylistItem $item): array
+    {
+        $version = $item->sheetVersion();
+
+        return [
+            'id' => $item->id,
+            'song_id' => $item->song_id,
+            'title' => $item->song->title,
+            'artist' => $item->song->artist,
+            'version_id' => $version->id,
+            'versions' => $item->song->versions->map(fn ($v) => ['id' => $v->id, 'name' => $v->name])->values(),
+            'semitones' => $item->semitones,
+            'capo' => $item->effectiveCapo(),
+            'key' => $item->key(),
+            'sounding_key' => $item->soundingKey(),
+            'options' => $version->original_key
+                ? collect(Key::options($version->original_key))->map(fn ($name, $s) => ['s' => $s, 'name' => $name])->values()
+                : null,
+            'url' => route('songs.show', [$item->song_id, 'v' => $version->id, 't' => $item->semitones]),
+        ];
     }
 
     /** Repertório completo, na ordem e nos tons salvos (mesma visão do link público). */
@@ -146,16 +167,25 @@ class PlaylistController extends Controller
         );
     }
 
+    public function docx(PdfExportRequest $request, Playlist $playlist): Response
+    {
+        Gate::authorize('view', $playlist);
+
+        return SongbookDocx::response(SongbookDocx::forPlaylist($playlist, $request->options()), $playlist->docxFilename());
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
     public static function entries(Playlist $playlist): array
     {
-        return $playlist->load('items.song.tags')->items->values()->map(fn ($item, $index) => [
+        return $playlist->load(['items.song.tags', 'items.song.versions', 'items.version'])->items->values()->map(fn ($item, $index) => [
             'number' => $index + 1,
             'item' => $item,
             'song' => $item->song,
-            'sheet' => Transposer::forSong($item->song, $item->semitones),
+            'version' => $item->sheetVersion(),
+            'version_label' => $item->song->versions->count() > 1 ? $item->sheetVersion()->name : null,
+            'sheet' => Transposer::forVersion($item->sheetVersion(), $item->semitones, $item->effectiveCapo()),
         ])->all();
     }
 }

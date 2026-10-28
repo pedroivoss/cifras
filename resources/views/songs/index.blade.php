@@ -50,7 +50,8 @@
                         @endif
                     </div>
                     <div class="flex shrink-0 flex-col items-end gap-1 text-right">
-                        @if ($song->original_key)<span class="chip bg-indigo-50 text-indigo-700">{{ $song->original_key }}</span>@endif
+                        @if ($song->versions->first()?->original_key)<span class="chip bg-indigo-50 text-indigo-700">{{ $song->versions->first()->original_key }}</span>@endif
+                        @if ($song->versions->count() > 1)<span class="text-xs text-slate-400">{{ $song->versions->count() }} versões</span>@endif
                         @if ($song->playlist_items_count)<span class="text-xs text-slate-400">em {{ $song->playlist_items_count }} {{ $song->playlist_items_count === 1 ? 'playlist' : 'playlists' }}</span>@endif
                     </div>
                 </a>

@@ -37,7 +37,7 @@
                                 <span class="block truncate font-medium">{{ $song->title }}</span>
                                 <span class="block truncate text-sm text-slate-500">{{ $song->artist ?: '—' }}</span>
                             </span>
-                            @if ($song->original_key)<span class="chip shrink-0">{{ $song->original_key }}</span>@endif
+                            @if ($song->versions->first()?->original_key)<span class="chip shrink-0">{{ $song->versions->first()->original_key }}</span>@endif
                         </a>
                     </li>
                 @empty

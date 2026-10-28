@@ -18,11 +18,11 @@ class PublicShareTest extends TestCase
         $user = User::factory()->create();
         $playlist = Playlist::factory()->for($user)->state(['is_public' => $public, 'allow_public_pdf' => $allowPdf])->create(['name' => 'Adoração']);
         PlaylistItem::factory()->for($playlist)->create([
-            'song_id' => Song::factory()->for($user)->create(['title' => 'Primeiro Canto', 'original_key' => 'D', 'content' => "D  A\nTe adoramos\n", 'youtube_url' => 'https://youtu.be/dQw4w9WgXcQ']),
+            'song_id' => Song::factory()->for($user)->withVersion("D  A\nTe adoramos\n", 'D')->create(['title' => 'Primeiro Canto', 'youtube_url' => 'https://youtu.be/dQw4w9WgXcQ']),
             'position' => 2, 'semitones' => 2,
         ]);
         PlaylistItem::factory()->for($playlist)->create([
-            'song_id' => Song::factory()->for($user)->create(['title' => 'Canto Inicial', 'original_key' => 'C', 'content' => "C\nLetra\n"]),
+            'song_id' => Song::factory()->for($user)->withVersion("C\nLetra\n", 'C')->create(['title' => 'Canto Inicial']),
             'position' => 1,
         ]);
 

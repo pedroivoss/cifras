@@ -86,7 +86,7 @@ class PlaylistTest extends TestCase
     public function test_item_key_is_saved_independently_per_playlist(): void
     {
         $user = User::factory()->create();
-        $song = Song::factory()->for($user)->create(['original_key' => 'G']);
+        $song = Song::factory()->for($user)->withVersion("G\nLetra\n", 'G')->create();
         $first = PlaylistItem::factory()->create(['playlist_id' => Playlist::factory()->for($user), 'song_id' => $song]);
         $second = PlaylistItem::factory()->create(['playlist_id' => Playlist::factory()->for($user), 'song_id' => $song]);
 
@@ -97,7 +97,7 @@ class PlaylistTest extends TestCase
 
         $this->assertSame(-1, $first->fresh()->semitones);
         $this->assertSame(0, $second->fresh()->semitones);
-        $this->assertSame('G', $song->fresh()->original_key);
+        $this->assertSame('G', $song->fresh()->defaultVersion()->original_key);
     }
 
     public function test_other_users_cannot_modify_items_or_playlists(): void
@@ -154,8 +154,8 @@ class PlaylistTest extends TestCase
     {
         $user = User::factory()->create();
         $playlist = Playlist::factory()->for($user)->create();
-        $songA = Song::factory()->for($user)->create(['title' => 'Primeira', 'original_key' => 'C', 'content' => "C  G\nLetra um\n"]);
-        $songB = Song::factory()->for($user)->create(['title' => 'Segunda', 'original_key' => 'Am', 'content' => "Am  E7\nLetra dois\n"]);
+        $songA = Song::factory()->for($user)->withVersion("C  G\nLetra um\n", 'C')->create(['title' => 'Primeira']);
+        $songB = Song::factory()->for($user)->withVersion("Am  E7\nLetra dois\n", 'Am')->create(['title' => 'Segunda']);
         PlaylistItem::factory()->for($playlist)->create(['song_id' => $songB, 'position' => 1, 'semitones' => 2]);
         PlaylistItem::factory()->for($playlist)->create(['song_id' => $songA, 'position' => 2, 'semitones' => -2]);
         PlaylistItem::factory()->for($playlist)->create(['song_id' => $songA, 'position' => 3, 'semitones' => 0]);
@@ -173,7 +173,7 @@ class PlaylistTest extends TestCase
     {
         $user = User::factory()->create();
         $playlist = Playlist::factory()->for($user)->create();
-        PlaylistItem::factory()->for($playlist)->create(['song_id' => Song::factory()->for($user)->create(['content' => "C  G\nLetra secreta\n"])]);
+        PlaylistItem::factory()->for($playlist)->create(['song_id' => Song::factory()->for($user)->withVersion("C  G\nLetra secreta\n")->create()]);
 
         $entries = SongbookPdf::playlistEntries($playlist, [...self::PDF_DEFAULTS, 'lyrics' => false]);
         $texts = collect($entries[0]['blocks'])->flatten(1)->pluck('text')->all();
@@ -185,7 +185,7 @@ class PlaylistTest extends TestCase
     {
         $user = User::factory()->create();
         $playlist = Playlist::factory()->for($user)->create();
-        PlaylistItem::factory()->for($playlist)->create(['song_id' => Song::factory()->for($user)->create(['content' => 'C '.str_repeat('G ', 60)."\n"])]);
+        PlaylistItem::factory()->for($playlist)->create(['song_id' => Song::factory()->for($user)->withVersion('C '.str_repeat('G ', 60)."\n")->create()]);
 
         $entry = SongbookPdf::playlistEntries($playlist, self::PDF_DEFAULTS)[0];
 
@@ -199,7 +199,7 @@ class PlaylistTest extends TestCase
         $playlist = Playlist::factory()->for($user)->create(['name' => 'Missa de Ação de Graças']);
         foreach (range(1, 5) as $position) {
             PlaylistItem::factory()->for($playlist)->create([
-                'song_id' => Song::factory()->for($user)->create(['title' => "Canção nº {$position} — Coração", 'content' => str_repeat("C  G/B  Am\nÉ tão bonito, ação, coração, pão\n\n", 40)]),
+                'song_id' => Song::factory()->for($user)->withVersion(str_repeat("C  G/B  Am\nÉ tão bonito, ação, coração, pão\n\n", 40))->create(['title' => "Canção nº {$position} — Coração"]),
                 'position' => $position,
                 'semitones' => $position,
             ]);

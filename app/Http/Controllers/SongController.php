@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PdfExportRequest;
 use App\Http\Requests\SongRequest;
 use App\Models\Song;
+use App\Models\SongVersion;
 use App\Services\Chords\Key;
 use App\Services\Chords\Transposer;
+use App\Services\Docx\SongbookDocx;
 use App\Services\Pdf\SongbookPdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +25,7 @@ class SongController extends Controller
         $selectedTags = array_map('intval', (array) $request->input('tags', []));
 
         $songs = $request->user()->songs()
-            ->with('tags')
+            ->with(['tags', 'versions:id,song_id,name,original_key,capo,position'])
             ->withCount('playlistItems')
             ->search($request->input('q'))
             ->withAllTags($selectedTags)
@@ -43,6 +45,7 @@ class SongController extends Controller
     {
         return view('songs.form', [
             'song' => new Song(['source' => 'manual']),
+            'version' => new SongVersion(['name' => SongVersion::DEFAULT_NAME, 'capo' => 0]),
             'tags' => $request->user()->tags()->orderBy('name')->get(),
         ]);
     }
@@ -50,7 +53,8 @@ class SongController extends Controller
     public function store(SongRequest $request): RedirectResponse
     {
         $song = DB::transaction(function () use ($request) {
-            $song = $request->user()->songs()->create($request->safe()->except(['tags', 'new_tags']));
+            $song = $request->user()->songs()->create($request->songAttributes());
+            $song->versions()->create([...$request->versionAttributes(), 'position' => 1]);
             $song->tags()->sync($this->tagIds($request));
 
             return $song;
@@ -63,12 +67,15 @@ class SongController extends Controller
     {
         Gate::authorize('view', $song);
 
+        $song->load(['tags', 'versions']);
+        $version = $this->selectedVersion($request, $song);
         $semitones = Key::normalize((int) $request->query('t', 0));
 
         return view('songs.show', [
-            'song' => $song->load('tags'),
-            'sheet' => Transposer::forSong($song, $semitones),
-            'keyOptions' => $song->original_key ? Key::options($song->original_key) : [],
+            'song' => $song,
+            'version' => $version,
+            'sheet' => Transposer::forVersion($version, $semitones),
+            'keyOptions' => $version->original_key ? Key::options($version->original_key) : [],
             'playlists' => $request->user()->playlists()->orderBy('name')->get(['id', 'name']),
             'inPlaylists' => $song->playlistItems()->with('playlist:id,name')->get()->pluck('playlist')->unique('id'),
         ]);
@@ -78,20 +85,28 @@ class SongController extends Controller
     {
         Gate::authorize('update', $song);
 
+        $song->load(['tags', 'versions']);
+
         return view('songs.form', [
-            'song' => $song->load('tags'),
+            'song' => $song,
+            'version' => $this->selectedVersion($request, $song),
             'tags' => $request->user()->tags()->orderBy('name')->get(),
         ]);
     }
 
     public function update(SongRequest $request, Song $song): RedirectResponse
     {
-        DB::transaction(function () use ($request, $song) {
-            $song->update($request->safe()->except(['tags', 'new_tags']));
+        $version = $request->filled('version_id')
+            ? $song->versions()->findOrFail($request->integer('version_id'))
+            : $song->versions()->firstOrFail();
+
+        DB::transaction(function () use ($request, $song, $version) {
+            $song->update($request->songAttributes());
+            $version->update($request->versionAttributes());
             $song->tags()->sync($this->tagIds($request));
         });
 
-        return redirect()->route('songs.show', $song)->with('success', 'Música atualizada.');
+        return redirect()->route('songs.show', [$song, 'v' => $version->id])->with('success', 'Música atualizada.');
     }
 
     public function destroy(Song $song): RedirectResponse
@@ -107,9 +122,26 @@ class SongController extends Controller
     {
         Gate::authorize('view', $song);
 
-        $pdf = SongbookPdf::forSong($song, (int) $request->query('t', 0), $request->options());
+        $pdf = SongbookPdf::forVersion($this->selectedVersion($request, $song), (int) $request->query('t', 0), $request->options());
 
         return SongbookPdf::response($pdf, 'cifra-'.(Str::slug($song->title) ?: $song->id).'.pdf', $request->boolean('inline'));
+    }
+
+    public function docx(PdfExportRequest $request, Song $song): Response
+    {
+        Gate::authorize('view', $song);
+
+        $docx = SongbookDocx::forVersion($this->selectedVersion($request, $song), (int) $request->query('t', 0), $request->options());
+
+        return SongbookDocx::response($docx, 'cifra-'.(Str::slug($song->title) ?: $song->id).'.docx');
+    }
+
+    /** Versão pedida em ?v= (somente desta música) ou a primeira. */
+    private function selectedVersion(Request $request, Song $song): SongVersion
+    {
+        $versions = $song->relationLoaded('versions') ? $song->versions : $song->versions()->get();
+
+        return $versions->firstWhere('id', $request->integer('v')) ?? $versions->first();
     }
 
     /**

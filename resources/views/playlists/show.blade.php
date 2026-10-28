@@ -39,10 +39,29 @@
                     <li class="card flex items-center gap-2 p-2 pr-3 sm:gap-3" :data-item-id="item.id" data-testid="playlist-item">
                         <button type="button" data-handle class="cursor-grab touch-none rounded-md p-1 text-slate-400 sm:p-2 hover:bg-slate-100 active:cursor-grabbing" aria-label="Arrastar para reordenar"><x-icon name="grip" /></button>
                         <span class="w-5 text-right text-sm font-semibold text-slate-400 tabular-nums sm:w-6" x-text="index + 1"></span>
-                        <a :href="item.url" class="min-w-0 flex-1 py-1">
-                            <span class="block truncate font-medium" x-text="item.title" data-testid="item-title"></span>
-                            <span class="block truncate text-sm text-slate-500" x-text="item.artist || '—'"></span>
-                        </a>
+                        <div class="min-w-0 flex-1 py-1">
+                            <a :href="item.url" class="block">
+                                <span class="block truncate font-medium" x-text="item.title" data-testid="item-title"></span>
+                                <span class="block truncate text-sm text-slate-500" x-text="item.artist || '—'"></span>
+                            </a>
+                            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                <template x-if="item.versions.length > 1">
+                                    <select class="input w-auto py-0.5 pr-7 pl-2 text-xs" :aria-label="'Versão de ' + item.title" data-testid="item-version"
+                                            @change="update(item, { song_version_id: parseInt($event.target.value) }, 'Versão salva')">
+                                        <template x-for="v in item.versions" :key="v.id">
+                                            <option :value="v.id" :selected="v.id === item.version_id" x-text="v.name"></option>
+                                        </template>
+                                    </select>
+                                </template>
+                                <select class="input w-auto py-0.5 pr-7 pl-2 text-xs" :aria-label="'Capotraste de ' + item.title" data-testid="item-capo"
+                                        @change="update(item, { capo: parseInt($event.target.value) }, 'Capotraste salvo')">
+                                    <template x-for="fret in 12" :key="fret">
+                                        <option :value="fret - 1" :selected="fret - 1 === item.capo" x-text="fret === 1 ? 'Sem capo' : 'Capo ' + (fret - 1)"></option>
+                                    </template>
+                                </select>
+                                <span x-cloak x-show="item.sounding_key" class="text-xs font-medium text-amber-700" x-text="'soa em ' + item.sounding_key" data-testid="item-sounding"></span>
+                            </div>
+                        </div>
 
                         <div class="flex shrink-0 items-center gap-1">
                             <button type="button" class="btn-ghost px-2 py-1 text-sm" :class="item.options && 'hidden sm:inline-flex'" @click="setSemitones(item, item.semitones - 1)" aria-label="Descer meio tom">−</button>
@@ -71,9 +90,9 @@
         </section>
 
         <aside class="space-y-4">
-            {{-- Exportação PDF --}}
+            {{-- Exportação PDF / Word (mesmas opções) --}}
             <form method="GET" action="{{ route('playlists.pdf', $playlist) }}" class="card space-y-3 p-4" data-testid="pdf-form">
-                <h2 class="flex items-center gap-2 font-semibold"><x-icon name="pdf" class="size-5 text-indigo-600" /> Exportar PDF</h2>
+                <h2 class="flex items-center gap-2 font-semibold"><x-icon name="pdf" class="size-5 text-indigo-600" /> Exportar PDF ou Word</h2>
                 <div class="grid grid-cols-2 gap-2 text-sm">
                     <label class="label col-span-2 mb-0" for="orientation">Orientação (A4)</label>
                     <select id="orientation" name="orientation" class="input col-span-2">
@@ -104,8 +123,9 @@
                 </fieldset>
                 <div class="flex gap-2 pt-1">
                     <button name="inline" value="1" formtarget="_blank" class="btn-secondary flex-1"><x-icon name="eye" class="size-4" /> Visualizar</button>
-                    <button class="btn-primary flex-1" data-testid="download-pdf"><x-icon name="pdf" class="size-4" /> Baixar</button>
+                    <button class="btn-primary flex-1" data-testid="download-pdf"><x-icon name="pdf" class="size-4" /> Baixar PDF</button>
                 </div>
+                <button formaction="{{ route('playlists.docx', $playlist) }}" class="btn-secondary w-full" data-testid="download-docx"><x-icon name="word" class="size-4" /> Baixar Word (.docx) editável</button>
             </form>
 
             {{-- Compartilhamento --}}
@@ -166,7 +186,7 @@
                                 <input type="checkbox" :value="song.id" x-model.number="selected" class="rounded border-slate-300 text-indigo-600" data-testid="library-song">
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-medium" x-text="song.title"></span>
-                                    <span class="block truncate text-xs text-slate-500" x-text="[song.artist, song.tags].filter(Boolean).join(' · ') || '—'"></span>
+                                    <span class="block truncate text-xs text-slate-500" x-text="[song.artist, song.tags, song.versions > 1 ? song.versions + ' versões' : ''].filter(Boolean).join(' · ') || '—'"></span>
                                 </span>
                                 <span class="chip" x-show="song.key" x-text="song.key"></span>
                             </label>

@@ -34,12 +34,12 @@ class DemoSeeder extends Seeder
 
         $songs = collect(self::SONGS)->map(function (array $data) use ($user) {
             [$title, $artist, $key, $tagName, $content] = $data;
-            $song = $user->songs()->firstOrCreate(['title' => $title], [
-                'artist' => $artist,
-                'original_key' => $key,
-                'content' => $content."\n",
-                'source' => 'manual',
-            ]);
+            $song = $user->songs()->firstOrCreate(['title' => $title], ['artist' => $artist, 'source' => 'manual']);
+
+            if ($song->versions()->doesntExist()) {
+                $song->versions()->create(['name' => 'Principal', 'original_key' => $key, 'content' => $content."\n", 'position' => 1]);
+            }
+
             $song->tags()->syncWithoutDetaching($user->tags()->where('name', $tagName)->pluck('id'));
 
             return $song;

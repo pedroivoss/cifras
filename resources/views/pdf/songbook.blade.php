@@ -21,7 +21,7 @@
         .toc table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
         .toc td { padding: 3pt 0; border-bottom: 0.5pt solid #e5e7eb; }
         .toc .n { width: 22pt; color: #6b7280; }
-        .toc .k { width: 50pt; text-align: right; font-weight: bold; color: #D97757; }
+        .toc .k { width: 90pt; text-align: right; font-weight: bold; color: #D97757; }
         .song-head { border-bottom: 1pt solid #d1d5db; padding-bottom: 4pt; margin-bottom: 8pt; page-break-after: avoid; }
         .song-head h2 { font-size: 14pt; margin: 0; }
         .song-head h2 .num { color: #6b7280; }
@@ -58,7 +58,7 @@
                     <tr>
                         <td class="n">{{ $entry['number'] }}.</td>
                         <td>{{ $entry['song']->title }}@if ($entry['song']->artist) <span style="color:#6b7280">— {{ $entry['song']->artist }}</span>@endif</td>
-                        <td class="k">{{ $entry['key'] }}</td>
+                        <td class="k">{{ $entry['sounding_key'] ?? $entry['key'] }}@if ($entry['capo']) <span style="color:#6b7280;font-weight:normal">(capo {{ $entry['capo'] }})</span>@endif</td>
                     </tr>
                 @endforeach
             </table>
@@ -76,10 +76,13 @@
 
         <div class="song">
             <div class="song-head">
-                <h2>@if ($entry['number'])<span class="num">{{ $entry['number'] }}.</span> @endif{{ $entry['song']->title }}</h2>
+                <h2>@if ($entry['number'])<span class="num">{{ $entry['number'] }}.</span> @endif{{ $entry['song']->title }}@if ($entry['version_label']) <span class="num">({{ $entry['version_label'] }})</span>@endif</h2>
                 <div class="sub">
-                    {{ $entry['song']->artist ?: '' }}
-                    @if ($entry['key'])@if ($entry['song']->artist) · @endif Tom: <span class="key">{{ $entry['key'] }}</span>@endif
+                    {{ collect([
+                        $entry['song']->artist,
+                        $entry['key'] ? 'Tom: '.$entry['key'] : null,
+                        $entry['capo'] ? 'Capo na '.$entry['capo'].'ª casa'.($entry['sounding_key'] ? ' (soa em '.$entry['sounding_key'].')' : '') : null,
+                    ])->filter()->join(' · ') }}
                 </div>
             </div>
             @if ($options['notes'] && $entry['notes'])

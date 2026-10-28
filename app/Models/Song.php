@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\Chords\Key;
 use App\Support\YouTube;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['title', 'artist', 'original_key', 'content', 'youtube_url', 'source', 'source_url', 'notes'])]
+#[Fillable(['title', 'artist', 'youtube_url', 'source', 'source_url', 'notes'])]
 class Song extends Model
 {
     use HasFactory;
@@ -64,9 +63,20 @@ class Song extends Model
         return $query;
     }
 
-    public function keyAfter(int $semitones): ?string
+    public function versions(): HasMany
     {
-        return $this->original_key ? Key::transpose($this->original_key, $semitones) : null;
+        return $this->hasMany(SongVersion::class)->orderBy('position')->orderBy('id');
+    }
+
+    /** Primeira versão (usada quando nenhuma é escolhida). */
+    public function defaultVersion(): ?SongVersion
+    {
+        return $this->versions->first();
+    }
+
+    public function nextVersionPosition(): int
+    {
+        return (int) $this->versions()->max('position') + 1;
     }
 
     public function youtubeId(): ?string

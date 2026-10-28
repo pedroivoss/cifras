@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Models\Song;
-use App\Services\Chords\Key;
 use App\Support\YouTube;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,15 +22,13 @@ class SongRequest extends FormRequest
      */
     public function rules(): array
     {
+        $song = $this->route('song');
+
         return [
             'title' => ['required', 'string', 'max:255'],
             'artist' => ['nullable', 'string', 'max:255'],
-            'original_key' => ['nullable', 'string', function (string $attribute, mixed $value, Closure $fail) {
-                if (! Key::isValid($value)) {
-                    $fail('Tom inválido. Use, por exemplo, C, F#, Bb, Am ou C#m.');
-                }
-            }],
-            'content' => ['required', 'string', 'max:100000'],
+            ...SongVersionRequest::fieldRules(),
+            'version_id' => ['nullable', 'integer', Rule::exists('song_versions', 'id')->where('song_id', $song?->id ?? 0)],
             'youtube_url' => ['nullable', 'string', 'max:500', function (string $attribute, mixed $value, Closure $fail) {
                 if (! YouTube::isValidUrl($value)) {
                     $fail('Informe um link válido do YouTube (youtube.com ou youtu.be).');
@@ -46,17 +43,33 @@ class SongRequest extends FormRequest
         ];
     }
 
-    public function attributes(): array
+    /**
+     * Campos da música (sem os da versão nem as tags).
+     *
+     * @return array<string, mixed>
+     */
+    public function songAttributes(): array
     {
-        return ['title' => 'título', 'content' => 'cifra', 'original_key' => 'tom original', 'source_url' => 'URL da fonte'];
+        return $this->safe()->only(['title', 'artist', 'youtube_url', 'source', 'source_url', 'notes']);
     }
 
-    /** Remove o "\r" de quebras Windows sem tocar em espaços (alinhamento da cifra). */
+    /**
+     * @return array{name: string, original_key: ?string, capo: int, content: string}
+     */
+    public function versionAttributes(): array
+    {
+        return SongVersionRequest::toVersionAttributes($this->validated());
+    }
+
+    public function attributes(): array
+    {
+        return ['title' => 'título', 'source_url' => 'URL da fonte', ...SongVersionRequest::fieldAttributes()];
+    }
+
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'content' => str_replace("\r\n", "\n", (string) $this->input('content')),
-            'original_key' => $this->filled('original_key') ? trim($this->input('original_key')) : null,
+            ...SongVersionRequest::normalizedFields($this),
             'source' => $this->input('source', 'manual'),
         ]);
     }

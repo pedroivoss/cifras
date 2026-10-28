@@ -33,7 +33,7 @@
                         <li class="flex gap-2">
                             <span class="w-5 text-right text-slate-400 tabular-nums">{{ $entry['number'] }}.</span>
                             <a href="#m{{ $entry['number'] }}" class="min-w-0 flex-1 truncate hover:text-indigo-600 hover:underline">{{ $entry['song']->title }}</a>
-                            @if ($entry['sheet']['key'])<span class="font-semibold text-chord">{{ $entry['sheet']['key'] }}</span>@endif
+                            @if ($entry['sheet']['key'])<span class="font-semibold text-chord">{{ $entry['sheet']['sounding_key'] ?? $entry['sheet']['key'] }}</span>@endif
                         </li>
                     @endforeach
                 </ol>
@@ -45,10 +45,11 @@
                     <article id="m{{ $entry['number'] }}" class="card scroll-mt-4 p-4 sm:p-6" data-testid="public-song">
                         <header class="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
                             <div class="min-w-0">
-                                <h2 class="text-lg font-semibold"><span class="text-slate-400 tabular-nums">{{ $entry['number'] }}.</span> {{ $entry['song']->title }}</h2>
+                                <h2 class="text-lg font-semibold"><span class="text-slate-400 tabular-nums">{{ $entry['number'] }}.</span> {{ $entry['song']->title }}@if ($entry['version_label']) <span class="text-sm font-normal text-slate-500">({{ $entry['version_label'] }})</span>@endif</h2>
                                 <p class="text-sm text-slate-500">
                                     {{ $entry['song']->artist ?: '—' }}
                                     @if ($entry['sheet']['key']) · Tom: <strong class="text-slate-900" data-testid="public-key">{{ $entry['sheet']['key'] }}</strong>@endif
+                                    @if ($entry['sheet']['capo']) · <span class="font-medium text-amber-700" data-testid="public-capo">Capo na {{ $entry['sheet']['capo'] }}ª casa{{ $entry['sheet']['sounding_key'] ? ' (soa em '.$entry['sheet']['sounding_key'].')' : '' }}</span>@endif
                                 </p>
                             </div>
                             @if ($videoId)

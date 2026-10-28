@@ -39,7 +39,8 @@ class SongTest extends TestCase
 
         $song = Song::firstOrFail();
         $response->assertRedirect(route('songs.show', $song));
-        $this->assertSame("G          D/F#\nObrigado, Senhor, por tudo\n", $song->content);
+        $this->assertSame("G          D/F#\nObrigado, Senhor, por tudo\n", $song->defaultVersion()->content);
+        $this->assertSame('Principal', $song->defaultVersion()->name);
         $this->assertEqualsCanonicalizing(['Ofertório', 'Natal', 'Mariana'], $song->tags->pluck('name')->all());
     }
 
@@ -49,7 +50,7 @@ class SongTest extends TestCase
 
         $this->actingAs($user)->post('/songs', $this->validSong(['content' => "      C    G\r\n  Letra  com   espaços\r\n"]));
 
-        $this->assertSame("      C    G\n  Letra  com   espaços\n", Song::firstOrFail()->content);
+        $this->assertSame("      C    G\n  Letra  com   espaços\n", Song::firstOrFail()->defaultVersion()->content);
     }
 
     public function test_validation_rejects_invalid_key_and_youtube_url(): void
@@ -71,20 +72,20 @@ class SongTest extends TestCase
     public function test_show_transposes_without_changing_the_original(): void
     {
         $user = User::factory()->create();
-        $song = Song::factory()->for($user)->create(['original_key' => 'C', 'content' => "C   G/B   Am\nSenhor, tende piedade\n"]);
+        $song = Song::factory()->for($user)->withVersion("C   G/B   Am\nSenhor, tende piedade\n", 'C')->create();
 
         $this->actingAs($user)->get(route('songs.show', [$song, 't' => 2]))
             ->assertOk()
             ->assertSee('D   A/C#  Bm')
             ->assertSee('Senhor, tende piedade');
 
-        $this->assertSame("C   G/B   Am\nSenhor, tende piedade\n", $song->fresh()->content);
+        $this->assertSame("C   G/B   Am\nSenhor, tende piedade\n", $song->fresh()->defaultVersion()->content);
     }
 
     public function test_content_is_escaped(): void
     {
         $user = User::factory()->create();
-        $song = Song::factory()->for($user)->create(['title' => '<script>alert(1)</script>', 'content' => "<img src=x onerror=alert(1)>\n"]);
+        $song = Song::factory()->for($user)->withVersion("<img src=x onerror=alert(1)>\n")->create(['title' => '<script>alert(1)</script>']);
 
         $this->actingAs($user)->get(route('songs.show', $song))
             ->assertOk()
@@ -125,7 +126,7 @@ class SongTest extends TestCase
         $song = Song::factory()->for($user)->create();
 
         $this->actingAs($user)->put(route('songs.update', $song), $this->validSong(['title' => 'Novo título', 'source' => 'outro', 'source_url' => 'https://exemplo.com/cifra']))
-            ->assertRedirect(route('songs.show', $song));
+            ->assertRedirect(route('songs.show', [$song, 'v' => $song->defaultVersion()->id]));
         $this->assertSame('Novo título', $song->fresh()->title);
         $this->assertSame('https://exemplo.com/cifra', $song->fresh()->source_url);
 
@@ -163,11 +164,8 @@ class SongTest extends TestCase
     public function test_import_pdf_reads_text_keeps_alignment_and_detects_key(): void
     {
         $user = User::factory()->create();
-        $song = Song::factory()->for($user)->create([
-            'title' => 'Ação de Graças', 'original_key' => 'G',
-            'content' => "G          D/F#\nObrigado, Senhor, ação de graças\n",
-        ]);
-        $pdf = SongbookPdf::forSong($song, 0, [
+        $song = Song::factory()->for($user)->withVersion("G          D/F#\nObrigado, Senhor, ação de graças\n", 'G')->create(['title' => 'Ação de Graças']);
+        $pdf = SongbookPdf::forVersion($song->defaultVersion(), 0, [
             'orientation' => 'portrait', 'font_size' => 11.0, 'margin' => 15, 'cover' => false,
             'toc' => false, 'page_break' => true, 'lyrics' => true, 'notes' => false,
         ])->output();
