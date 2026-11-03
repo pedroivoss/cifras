@@ -214,7 +214,7 @@
                         </li>
                     </template>
                     <li x-show="filtered.length === 0" class="px-3 py-8 text-center text-sm text-slate-500">
-                        Nenhuma música encontrada. <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastrar nova</a>
+                        Nenhuma música encontrada.@can('manage-songs') <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastrar nova</a>@endcan
                     </li>
                 </ul>
                 <template x-for="id in selected" :key="id"><input type="hidden" name="song_ids[]" :value="id"></template>

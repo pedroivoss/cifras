@@ -6,6 +6,7 @@ use App\Http\Requests\PdfExportRequest;
 use App\Http\Requests\SongRequest;
 use App\Models\Song;
 use App\Models\SongVersion;
+use App\Models\Tag;
 use App\Services\Chords\Key;
 use App\Services\Chords\Transposer;
 use App\Services\Docx\SongbookDocx;
@@ -24,7 +25,7 @@ class SongController extends Controller
     {
         $selectedTags = array_map('intval', (array) $request->input('tags', []));
 
-        $songs = $request->user()->songs()
+        $songs = Song::query()
             ->with(['tags', 'versions:id,song_id,name,original_key,capo,position'])
             ->withCount('playlistItems')
             ->search($request->input('q'))
@@ -35,7 +36,7 @@ class SongController extends Controller
 
         return view('songs.index', [
             'songs' => $songs,
-            'tags' => $request->user()->tags()->orderBy('name')->get(),
+            'tags' => Tag::orderBy('name')->get(),
             'selectedTags' => $selectedTags,
             'q' => $request->input('q'),
         ]);
@@ -46,7 +47,7 @@ class SongController extends Controller
         return view('songs.form', [
             'song' => new Song(['source' => 'manual']),
             'version' => new SongVersion(['name' => SongVersion::DEFAULT_NAME, 'capo' => 0]),
-            'tags' => $request->user()->tags()->orderBy('name')->get(),
+            'tags' => Tag::orderBy('name')->get(),
         ]);
     }
 
@@ -90,7 +91,7 @@ class SongController extends Controller
         return view('songs.form', [
             'song' => $song,
             'version' => $this->selectedVersion($request, $song),
-            'tags' => $request->user()->tags()->orderBy('name')->get(),
+            'tags' => Tag::orderBy('name')->get(),
         ]);
     }
 
@@ -158,7 +159,7 @@ class SongController extends Controller
             $slug = Str::slug($name);
 
             if ($slug !== '') {
-                $ids[] = $request->user()->tags()->firstOrCreate(['slug' => $slug], ['name' => $name])->id;
+                $ids[] = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'user_id' => $request->user()->id])->id;
             }
         }
 

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -19,31 +21,46 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
+    /** Login com e-mail ou nome de usuário + senha. Só contas ativas (criadas pelo administrador) entram. */
     public function store(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
-            'email' => ['required', 'string', 'email'],
+            'login' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
         ]);
 
-        $throttleKey = Str::transliterate(Str::lower($credentials['email']).'|'.$request->ip());
+        $login = Str::lower(trim($credentials['login']));
+        $throttleKey = Str::transliterate($login.'|'.$request->ip());
 
         if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
             throw ValidationException::withMessages([
-                'email' => 'Muitas tentativas. Tente novamente em '.RateLimiter::availableIn($throttleKey).' segundos.',
+                'login' => 'Muitas tentativas. Tente novamente em '.RateLimiter::availableIn($throttleKey).' segundos.',
             ]);
         }
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        $user = User::where(str_contains($login, '@') ? 'email' : 'username', $login)->first();
+
+        if (! $user || ! $user->password || ! Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($throttleKey, 60);
 
-            throw ValidationException::withMessages(['email' => 'E-mail ou senha inválidos.']);
+            throw ValidationException::withMessages(['login' => 'Usuário/e-mail ou senha inválidos.']);
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages(['login' => 'Sua conta está desativada. Fale com o administrador.']);
         }
 
         RateLimiter::clear($throttleKey);
-        $request->session()->regenerate();
+        self::loginUser($request, $user, $request->boolean('remember'));
 
         return redirect()->intended(route('dashboard'));
+    }
+
+    public static function loginUser(Request $request, User $user, bool $remember = false): void
+    {
+        Auth::login($user, $remember);
+        $request->session()->regenerate();
+        $user->forceFill(['last_login_at' => now()])->save();
     }
 
     public function destroy(Request $request): RedirectResponse

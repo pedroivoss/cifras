@@ -26,7 +26,7 @@ class SongVersionTest extends TestCase
 
     public function test_user_can_create_a_version_from_an_existing_one(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->withVersion("C  G\nLetra\n", 'C')->create();
 
         $this->actingAs($user)->get(route('songs.versions.create', [$song, 'from' => $song->defaultVersion()->id]))
@@ -44,7 +44,7 @@ class SongVersionTest extends TestCase
 
     public function test_show_selects_the_requested_version_and_ignores_foreign_ids(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         $simplified = $song->versions[1];
         $foreign = SongVersion::factory()->create();
@@ -62,7 +62,7 @@ class SongVersionTest extends TestCase
 
     public function test_update_edits_only_the_chosen_version(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         [$full, $simplified] = $song->versions;
 
@@ -78,7 +78,7 @@ class SongVersionTest extends TestCase
 
     public function test_update_rejects_a_version_from_another_song(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->create();
         $other = Song::factory()->for($user)->create();
 
@@ -89,7 +89,7 @@ class SongVersionTest extends TestCase
 
     public function test_deleting_a_version_moves_playlist_items_and_keeps_the_last_one(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         [$full, $simplified] = $song->versions;
         $item = PlaylistItem::factory()->create([
@@ -105,7 +105,7 @@ class SongVersionTest extends TestCase
         $this->assertModelExists($full);
     }
 
-    public function test_versions_of_other_users_cannot_be_managed(): void
+    public function test_common_users_cannot_manage_versions(): void
     {
         $song = Song::factory()->create();
         $intruder = User::factory()->create();
@@ -117,7 +117,7 @@ class SongVersionTest extends TestCase
 
     public function test_playlist_item_can_switch_version_and_capo(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         [$full, $simplified] = $song->versions;
         $playlist = Playlist::factory()->for($user)->create();
@@ -137,7 +137,7 @@ class SongVersionTest extends TestCase
 
     public function test_adding_without_version_uses_the_first_one(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         $playlist = Playlist::factory()->for($user)->create();
 
@@ -160,7 +160,7 @@ class SongVersionTest extends TestCase
 
     public function test_pdf_and_public_view_show_version_and_capo(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = $this->songWithTwoVersions($user);
         $playlist = Playlist::factory()->for($user)->public()->create();
         PlaylistItem::factory()->for($playlist)->create(['song_id' => $song->id, 'song_version_id' => $song->versions[1]->id]);

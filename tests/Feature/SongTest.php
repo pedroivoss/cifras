@@ -29,7 +29,7 @@ class SongTest extends TestCase
 
     public function test_user_can_create_a_song_with_tags_and_new_tags(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $tag = Tag::factory()->for($user)->create(['name' => 'Ofertório']);
 
         $response = $this->actingAs($user)->post('/songs', $this->validSong([
@@ -46,7 +46,7 @@ class SongTest extends TestCase
 
     public function test_windows_line_breaks_are_normalized_but_spaces_preserved(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post('/songs', $this->validSong(['content' => "      C    G\r\n  Letra  com   espaços\r\n"]));
 
@@ -55,23 +55,26 @@ class SongTest extends TestCase
 
     public function test_validation_rejects_invalid_key_and_youtube_url(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post('/songs', $this->validSong(['original_key' => 'H', 'youtube_url' => 'https://vimeo.com/123']))
             ->assertSessionHasErrors(['original_key', 'youtube_url']);
     }
 
-    public function test_cannot_attach_tags_from_another_user(): void
+    public function test_songs_use_the_shared_tag_library(): void
     {
-        $user = User::factory()->create();
-        $foreignTag = Tag::factory()->create();
+        $user = User::factory()->songManager()->create();
+        $tagFromSomeoneElse = Tag::factory()->create();
 
-        $this->actingAs($user)->post('/songs', $this->validSong(['tags' => [$foreignTag->id]]))->assertSessionHasErrors('tags.0');
+        $this->actingAs($user)->post('/songs', $this->validSong(['tags' => [$tagFromSomeoneElse->id], 'new_tags' => $tagFromSomeoneElse->name]))->assertSessionHasNoErrors();
+
+        $this->assertSame([$tagFromSomeoneElse->id], Song::firstOrFail()->tags()->pluck('tags.id')->all(), 'Tag com o mesmo nome é reaproveitada');
+        $this->assertSame(1, Tag::count());
     }
 
     public function test_show_transposes_without_changing_the_original(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->withVersion("C   G/B   Am\nSenhor, tende piedade\n", 'C')->create();
 
         $this->actingAs($user)->get(route('songs.show', [$song, 't' => 2]))
@@ -84,7 +87,7 @@ class SongTest extends TestCase
 
     public function test_content_is_escaped(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->withVersion("<img src=x onerror=alert(1)>\n")->create(['title' => '<script>alert(1)</script>']);
 
         $this->actingAs($user)->get(route('songs.show', $song))
@@ -95,7 +98,7 @@ class SongTest extends TestCase
 
     public function test_search_and_tag_filters(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $tagA = Tag::factory()->for($user)->create(['name' => 'Entrada']);
         $tagB = Tag::factory()->for($user)->create(['name' => 'Louvor']);
         $both = Song::factory()->for($user)->create(['title' => 'Vinde Cantar', 'artist' => 'X']);
@@ -108,21 +111,40 @@ class SongTest extends TestCase
         $this->actingAs($user)->get('/songs?tags[]='.$tagA->id.'&tags[]='.$tagB->id)->assertSee('Vinde Cantar')->assertDontSee('Abri as Portas');
     }
 
-    public function test_users_cannot_access_songs_of_others(): void
+    public function test_common_users_see_all_songs_but_cannot_change_the_library(): void
+    {
+        $song = Song::factory()->create(['title' => 'Cadastrada por outra pessoa']);
+        $member = User::factory()->create();
+
+        $this->actingAs($member)->get(route('songs.index'))->assertOk()->assertSee('Cadastrada por outra pessoa')->assertDontSee('Nova música');
+        $this->actingAs($member)->get(route('songs.show', $song))->assertOk()->assertDontSee('Nova versão');
+        $this->actingAs($member)->get(route('songs.pdf', $song))->assertOk();
+
+        $this->actingAs($member)->get(route('songs.create'))->assertForbidden();
+        $this->actingAs($member)->post('/songs', $this->validSong())->assertForbidden();
+        $this->actingAs($member)->get(route('songs.edit', $song))->assertForbidden();
+        $this->actingAs($member)->put(route('songs.update', $song), $this->validSong())->assertForbidden();
+        $this->actingAs($member)->delete(route('songs.destroy', $song))->assertForbidden();
+        $this->actingAs($member)->get(route('songs.import'))->assertForbidden();
+        $this->actingAs($member)->post(route('songs.import.paste'), ['content' => 'C
+Letra'])->assertForbidden();
+        $this->actingAs($member)->get(route('tags.index'))->assertForbidden();
+        $this->assertModelExists($song);
+        $this->assertSame(1, Song::count());
+    }
+
+    public function test_song_managers_edit_songs_registered_by_anyone(): void
     {
         $song = Song::factory()->create();
-        $intruder = User::factory()->create();
 
-        $this->actingAs($intruder)->get(route('songs.show', $song))->assertForbidden();
-        $this->actingAs($intruder)->put(route('songs.update', $song), $this->validSong())->assertForbidden();
-        $this->actingAs($intruder)->delete(route('songs.destroy', $song))->assertForbidden();
-        $this->actingAs($intruder)->get(route('songs.pdf', $song))->assertForbidden();
-        $this->assertModelExists($song);
+        $this->actingAs(User::factory()->songManager()->create())->put(route('songs.update', $song), $this->validSong(['title' => 'Revisada']))->assertRedirect();
+
+        $this->assertSame('Revisada', $song->fresh()->title);
     }
 
     public function test_user_can_update_and_delete_a_song(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->create();
 
         $this->actingAs($user)->put(route('songs.update', $song), $this->validSong(['title' => 'Novo título', 'source' => 'outro', 'source_url' => 'https://exemplo.com/cifra']))
@@ -136,7 +158,7 @@ class SongTest extends TestCase
 
     public function test_single_song_pdf_download(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->create(['title' => 'Glória a Deus']);
 
         $response = $this->actingAs($user)->get(route('songs.pdf', [$song, 't' => 3]));
@@ -148,7 +170,7 @@ class SongTest extends TestCase
 
     public function test_import_chordpro_file_prefills_the_form(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $file = UploadedFile::fake()->createWithContent('santo.cho', "{title: Santo}\n{artist: Coral}\n{key: D}\n[D]Santo, [A]santo\n");
 
         $this->actingAs($user)->post(route('songs.import.file'), ['file' => $file])
@@ -163,7 +185,7 @@ class SongTest extends TestCase
 
     public function test_import_pdf_reads_text_keeps_alignment_and_detects_key(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $song = Song::factory()->for($user)->withVersion("G          D/F#\nObrigado, Senhor, ação de graças\n", 'G')->create(['title' => 'Ação de Graças']);
         $pdf = SongbookPdf::forVersion($song->defaultVersion(), 0, [
             'orientation' => 'portrait', 'font_size' => 11.0, 'margin' => 15, 'cover' => false,
@@ -181,7 +203,7 @@ class SongTest extends TestCase
 
     public function test_import_rejects_fake_pdf(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $file = UploadedFile::fake()->createWithContent('falso.pdf', 'isto não é um pdf');
 
         $this->actingAs($user)->post(route('songs.import.file'), ['file' => $file])->assertSessionHasErrors('file');
@@ -189,7 +211,7 @@ class SongTest extends TestCase
 
     public function test_import_rejects_unsupported_files(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post(route('songs.import.file'), ['file' => UploadedFile::fake()->create('virus.php', 1)])
             ->assertSessionHasErrors('file');
@@ -197,7 +219,7 @@ class SongTest extends TestCase
 
     public function test_paste_import_uses_first_line_as_title(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post(route('songs.import.paste'), ['content' => "Hino de Louvor\nC  G\nLetra\n"])
             ->assertSessionHasInput('title', 'Hino de Louvor')
@@ -206,7 +228,7 @@ class SongTest extends TestCase
 
     public function test_paste_from_bookmarklet_keeps_source_and_valid_youtube_only(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
         $payload = [
             'content' => "G  D\nLetra\n",
             'title' => 'Oração pela Família',
@@ -230,7 +252,7 @@ class SongTest extends TestCase
 
     public function test_import_page_offers_the_bookmarklet(): void
     {
-        $this->actingAs(User::factory()->create())->get(route('songs.import'))
+        $this->actingAs(User::factory()->songManager()->create())->get(route('songs.import'))
             ->assertOk()
             ->assertSee('Salvar no Cifra Ivo')
             ->assertSee('javascript:(()=&gt;', false);
@@ -239,7 +261,7 @@ class SongTest extends TestCase
     public function test_external_import_is_disabled_without_configuration(): void
     {
         config(['services.cifraclub_api.url' => null]);
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->get(route('songs.import'))->assertSee('Desativada');
         $this->actingAs($user)->post(route('songs.import.external'), ['reference' => 'artista/musica'])
@@ -255,7 +277,7 @@ class SongTest extends TestCase
                 'cifraclub_url' => 'https://www.cifraclub.com.br/coral/santo/', 'cifra' => ['C  G', 'Santo, santo'],
             ]),
         ]);
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post(route('songs.import.external'), ['reference' => 'https://www.cifraclub.com.br/coral/santo/'])
             ->assertRedirect(route('songs.create'))

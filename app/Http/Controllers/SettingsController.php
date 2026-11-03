@@ -30,8 +30,8 @@ class SettingsController extends Controller
     public function updatePassword(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'current_password' => ['required', 'current_password'],
-            'password' => ['required', 'confirmed', Password::min(10)],
+            'current_password' => $request->user()->password ? ['required', 'current_password'] : ['nullable'],
+            'password' => ['required', 'confirmed', Password::min(8)],
         ], [], ['current_password' => 'senha atual', 'password' => 'nova senha']);
 
         $request->user()->update(['password' => $data['password']]);

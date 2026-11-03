@@ -41,4 +41,11 @@ return [
         'timeout' => (int) env('CIFRACLUB_API_TIMEOUT', 20),
     ],
 
+    // Login com Google (opcional): só entra quem o administrador cadastrou com o mesmo e-mail.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
 ];

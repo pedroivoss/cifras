@@ -1,7 +1,7 @@
 <x-layouts.app title="Dashboard">
     <x-page-header title="Olá, {{ strtok(auth()->user()->name, ' ') }}" subtitle="Monte o repertório, ajuste os tons e gere o PDF.">
         <x-slot:actions>
-            <a href="{{ route('songs.create') }}" class="btn-secondary"><x-icon name="plus" class="size-4" /> Nova música</a>
+            @can('manage-songs')<a href="{{ route('songs.create') }}" class="btn-secondary"><x-icon name="plus" class="size-4" /> Nova música</a>@endcan
             <a href="{{ route('playlists.create') }}" class="btn-primary"><x-icon name="plus" class="size-4" /> Nova playlist</a>
         </x-slot:actions>
     </x-page-header>
@@ -14,11 +14,18 @@
         </div>
     </form>
 
-    <div class="mb-8 grid grid-cols-3 gap-3 sm:gap-4">
-        @foreach ([['Músicas', $songCount, 'songs.index'], ['Playlists', $playlistCount, 'playlists.index'], ['Tags', $tagCount, 'tags.index']] as [$label, $count, $route])
+    @php
+        $stats = array_values(array_filter([
+            ['Músicas', $songCount, 'songs.index', null],
+            ['Playlists', $playlistCount, 'playlists.index', $playlistLimit ? 'de '.$playlistLimit : null],
+            auth()->user()->can('manage-songs') ? ['Tags', $tagCount, 'tags.index', null] : null,
+        ]));
+    @endphp
+    <div @class(['mb-8 grid gap-3 sm:gap-4', 'grid-cols-3' => count($stats) === 3, 'grid-cols-2' => count($stats) === 2])>
+        @foreach ($stats as [$label, $count, $route, $suffix])
             <a href="{{ route($route) }}" class="card p-4 hover:border-indigo-300 sm:p-5">
                 <p class="text-xs font-medium text-slate-500 sm:text-sm">{{ $label }}</p>
-                <p class="mt-1 text-2xl font-semibold tabular-nums sm:text-3xl" data-testid="count-{{ Str::slug($label) }}">{{ $count }}</p>
+                <p class="mt-1 text-2xl font-semibold tabular-nums sm:text-3xl" data-testid="count-{{ Str::slug($label) }}">{{ $count }}@if ($suffix)<span class="ml-1 text-sm font-normal text-slate-400">{{ $suffix }}</span>@endif</p>
             </a>
         @endforeach
     </div>
@@ -41,7 +48,7 @@
                         </a>
                     </li>
                 @empty
-                    <li class="px-5 py-8 text-center text-sm text-slate-500">Nenhuma música ainda. <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastre a primeira</a>.</li>
+                    <li class="px-5 py-8 text-center text-sm text-slate-500">Nenhuma música ainda.@can('manage-songs') <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastre a primeira</a>.@endcan</li>
                 @endforelse
             </ul>
         </section>

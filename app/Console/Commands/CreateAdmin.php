@@ -2,14 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
-#[Signature('cifra:create-admin {--email= : E-mail do administrador} {--name= : Nome exibido}')]
+#[Signature('cifra:create-admin {--email= : E-mail do administrador} {--username= : Usuário de login} {--name= : Nome exibido}')]
 #[Description('Cria (ou redefine a senha de) um administrador. A senha é sempre digitada de forma interativa.')]
 class CreateAdmin extends Command
 {
@@ -23,13 +26,15 @@ class CreateAdmin extends Command
         }
 
         $name = $existing?->name ?? ($this->option('name') ?: $this->ask('Nome', 'Administrador'));
+        $username = $existing?->username ?? Str::lower((string) ($this->option('username') ?: $this->ask('Usuário de login', Str::before($email, '@'))));
         $password = $this->secret('Senha (mín. 10 caracteres)');
         $confirmation = $this->secret('Confirme a senha');
 
         $validator = Validator::make(
-            ['name' => $name, 'email' => $email, 'password' => $password, 'password_confirmation' => $confirmation],
+            ['name' => $name, 'username' => $username, 'email' => $email, 'password' => $password, 'password_confirmation' => $confirmation],
             [
                 'name' => ['required', 'string', 'max:255'],
+                'username' => ['required', 'min:3', 'max:40', 'regex:/^[a-z0-9._]+$/', Rule::unique('users')->ignore($existing)],
                 'email' => ['required', 'email', 'max:255'],
                 'password' => ['required', 'confirmed', Password::min(10)],
             ],
@@ -44,10 +49,10 @@ class CreateAdmin extends Command
         }
 
         $user = $existing ?? new User(['email' => $email]);
-        $user->fill(['name' => $name, 'password' => $password])->save();
-        $user->seedDefaultTags();
+        $user->fill(['name' => $name, 'username' => $username, 'password' => $password, 'is_admin' => true, 'can_manage_songs' => true, 'is_active' => true])->save();
+        Tag::seedDefaults($user);
 
-        $this->info($existing ? 'Senha redefinida.' : "Administrador {$email} criado com as tags iniciais.");
+        $this->info($existing ? 'Senha redefinida (conta ativa e administradora).' : "Administrador {$email} ({$username}) criado com as tags iniciais.");
 
         return self::SUCCESS;
     }

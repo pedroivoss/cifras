@@ -43,6 +43,9 @@ class PublicPlaylistController extends Controller
     {
         abort_unless(preg_match('/^[a-f0-9]{40}$/', $token) === 1, 404);
 
-        return Playlist::where('share_token', $token)->where('is_public', true)->firstOrFail();
+        return Playlist::where('share_token', $token)
+            ->where('is_public', true)
+            ->whereHas('user', fn ($query) => $query->where('is_active', true))
+            ->firstOrFail();
     }
 }

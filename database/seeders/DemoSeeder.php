@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -30,7 +31,7 @@ class DemoSeeder extends Seeder
             return;
         }
 
-        $user->seedDefaultTags();
+        Tag::seedDefaults($user);
 
         $songs = collect(self::SONGS)->map(function (array $data) use ($user) {
             [$title, $artist, $key, $tagName, $content] = $data;
@@ -40,7 +41,7 @@ class DemoSeeder extends Seeder
                 $song->versions()->create(['name' => 'Principal', 'original_key' => $key, 'content' => $content."\n", 'position' => 1]);
             }
 
-            $song->tags()->syncWithoutDetaching($user->tags()->where('name', $tagName)->pluck('id'));
+            $song->tags()->syncWithoutDetaching(Tag::where('name', $tagName)->pluck('id'));
 
             return $song;
         });

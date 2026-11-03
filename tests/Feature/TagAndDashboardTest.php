@@ -15,7 +15,7 @@ class TagAndDashboardTest extends TestCase
 
     public function test_tag_crud(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->songManager()->create();
 
         $this->actingAs($user)->post('/tags', ['name' => 'Canto Mariano', 'color' => '#aa0000'])->assertRedirect(route('tags.index'));
         $tag = Tag::firstOrFail();
@@ -33,36 +33,38 @@ class TagAndDashboardTest extends TestCase
         $this->assertModelExists($song);
     }
 
-    public function test_same_tag_name_is_allowed_for_different_users(): void
+    public function test_tag_names_are_unique_in_the_shared_library(): void
     {
         Tag::factory()->create(['name' => 'Louvor']);
-        $user = User::factory()->create();
 
-        $this->actingAs($user)->post('/tags', ['name' => 'Louvor'])->assertSessionHasNoErrors();
+        $this->actingAs(User::factory()->songManager()->create())->post('/tags', ['name' => 'Louvor'])->assertSessionHasErrors('slug');
     }
 
-    public function test_cannot_edit_tags_of_others(): void
+    public function test_common_users_cannot_manage_tags(): void
     {
         $tag = Tag::factory()->create();
 
+        $this->actingAs(User::factory()->create())->post('/tags', ['name' => 'X'])->assertForbidden();
         $this->actingAs(User::factory()->create())->put(route('tags.update', $tag), ['name' => 'X'])->assertForbidden();
         $this->actingAs(User::factory()->create())->delete(route('tags.destroy', $tag))->assertForbidden();
+        $this->assertModelExists($tag);
     }
 
-    public function test_dashboard_shows_only_own_counts_and_latest(): void
+    public function test_dashboard_shows_library_counts_and_own_playlists(): void
     {
         $user = User::factory()->create();
-        Song::factory()->for($user)->count(3)->create();
+        Song::factory()->for($user)->count(2)->create();
         Song::factory()->create(['title' => 'Música de outra pessoa']);
         Playlist::factory()->for($user)->create(['name' => 'Missa das Crianças']);
-        Tag::factory()->for($user)->count(2)->create();
+        Playlist::factory()->create(['name' => 'Playlist de outra pessoa']);
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
             ->assertSee('Missa das Crianças')
-            ->assertDontSee('Música de outra pessoa')
+            ->assertDontSee('Playlist de outra pessoa')
+            ->assertSee('Música de outra pessoa')
             ->assertSeeInOrder(['data-testid="count-musicas"', '3'], false)
-            ->assertSeeInOrder(['data-testid="count-playlists"', '1'], false)
-            ->assertSeeInOrder(['data-testid="count-tags"', '2'], false);
+            ->assertSeeInOrder(['data-testid="count-playlists"', '1', 'de 30'], false)
+            ->assertDontSee('data-testid="count-tags"', false);
     }
 }

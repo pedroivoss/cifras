@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -29,8 +30,9 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create(['password' => 'senha-segura-123']);
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'senha-segura-123'])->assertRedirect(route('dashboard'));
+        $this->post('/login', ['login' => $user->email, 'password' => 'senha-segura-123'])->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($user);
+        $this->assertNotNull($user->fresh()->last_login_at);
 
         $this->post('/logout')->assertRedirect(route('login'));
         $this->assertGuest();
@@ -40,7 +42,7 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'errada'])->assertSessionHasErrors('email');
+        $this->post('/login', ['login' => $user->email, 'password' => 'errada'])->assertSessionHasErrors('login');
         $this->assertGuest();
     }
 
@@ -49,11 +51,11 @@ class AuthTest extends TestCase
         $user = User::factory()->create();
 
         foreach (range(1, 5) as $attempt) {
-            $this->post('/login', ['email' => $user->email, 'password' => 'errada']);
+            $this->post('/login', ['login' => $user->email, 'password' => 'errada']);
         }
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertSessionHasErrors('email');
-        $this->assertStringStartsWith('Muitas tentativas.', session('errors')->first('email'));
+        $this->post('/login', ['login' => $user->email, 'password' => 'password'])->assertSessionHasErrors('login');
+        $this->assertStringStartsWith('Muitas tentativas.', session('errors')->first('login'));
         $this->assertGuest();
     }
 
@@ -71,19 +73,21 @@ class AuthTest extends TestCase
 
     public function test_create_admin_command_asks_password_interactively(): void
     {
-        $this->artisan('cifra:create-admin', ['--email' => 'admin@exemplo.com', '--name' => 'Admin'])
+        $this->artisan('cifra:create-admin', ['--email' => 'admin@exemplo.com', '--name' => 'Admin', '--username' => 'Admin.Master'])
             ->expectsQuestion('Senha (mín. 10 caracteres)', 'uma-senha-longa')
             ->expectsQuestion('Confirme a senha', 'uma-senha-longa')
             ->assertSuccessful();
 
         $user = User::where('email', 'admin@exemplo.com')->firstOrFail();
         $this->assertTrue(password_verify('uma-senha-longa', $user->password));
-        $this->assertSame(13, $user->tags()->count());
+        $this->assertSame('admin.master', $user->username);
+        $this->assertTrue($user->is_admin && $user->can_manage_songs && $user->is_active);
+        $this->assertSame(13, Tag::count());
     }
 
     public function test_create_admin_command_rejects_short_password(): void
     {
-        $this->artisan('cifra:create-admin', ['--email' => 'admin@exemplo.com', '--name' => 'Admin'])
+        $this->artisan('cifra:create-admin', ['--email' => 'admin@exemplo.com', '--name' => 'Admin', '--username' => 'admin'])
             ->expectsQuestion('Senha (mín. 10 caracteres)', 'curta')
             ->expectsQuestion('Confirme a senha', 'curta')
             ->assertFailed();

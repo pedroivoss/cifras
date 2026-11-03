@@ -5,13 +5,15 @@
 @endphp
 <x-layouts.app :title="$song->title">
     <x-page-header :title="$song->title" :subtitle="$song->artist">
-        <x-slot:actions>
-            <a href="{{ route('songs.edit', [$song, 'v' => $version->id]) }}" class="btn-secondary"><x-icon name="pencil" class="size-4" /> Editar</a>
-            <form method="POST" action="{{ route('songs.destroy', $song) }}" data-confirm="Excluir “{{ $song->title }}”?" data-confirm-text="A música também será removida de todas as playlists. Esta ação não pode ser desfeita." data-confirm-button="Excluir">
-                @csrf @method('DELETE')
-                <button class="btn-danger"><x-icon name="trash" class="size-4" /> Excluir</button>
-            </form>
-        </x-slot:actions>
+        @can('update', $song)
+            <x-slot:actions>
+                <a href="{{ route('songs.edit', [$song, 'v' => $version->id]) }}" class="btn-secondary"><x-icon name="pencil" class="size-4" /> Editar</a>
+                <form method="POST" action="{{ route('songs.destroy', $song) }}" data-confirm="Excluir “{{ $song->title }}”?" data-confirm-text="A música será removida de todas as playlists, de todos os usuários. Esta ação não pode ser desfeita." data-confirm-button="Excluir">
+                    @csrf @method('DELETE')
+                    <button class="btn-danger"><x-icon name="trash" class="size-4" /> Excluir</button>
+                </form>
+            </x-slot:actions>
+        @endcan
     </x-page-header>
 
     <div class="grid gap-6 lg:grid-cols-[1fr_18rem]">
@@ -23,8 +25,10 @@
                        @class(['rounded-full px-3 py-1 text-sm font-medium ring-1 ring-inset', 'bg-indigo-600 text-white ring-indigo-600' => $v->is($version), 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50' => ! $v->is($version)])
                        @if ($v->is($version)) aria-current="page" @endif>{{ $v->name }}</a>
                 @endforeach
+                @can('update', $song)
                 <a href="{{ route('songs.versions.create', [$song, 'from' => $version->id]) }}" class="btn-ghost px-2 py-1 text-sm" data-testid="new-version"><x-icon name="plus" class="size-4" /> Nova versão</a>
-                @if ($song->versions->count() > 1)
+                @endcan
+                @if ($song->versions->count() > 1 && auth()->user()->can('update', $song))
                     <form method="POST" action="{{ route('songs.versions.destroy', [$song, $version]) }}" data-confirm="Excluir a versão “{{ $version->name }}”?" data-confirm-text="Playlists que usam esta versão passarão a usar outra versão da música." data-confirm-button="Excluir versão">
                         @csrf @method('DELETE')
                         <button class="btn-ghost px-2 py-1 text-sm text-red-600 hover:bg-red-50">Excluir versão</button>

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'slug', 'color'])]
+#[Fillable(['name', 'slug', 'color', 'user_id'])]
 class Tag extends Model
 {
     use HasFactory;
@@ -24,6 +24,15 @@ class Tag extends Model
         static::saving(fn (Tag $tag) => $tag->slug = Str::slug($tag->name));
     }
 
+    /** Tags iniciais da biblioteca (idempotente). */
+    public static function seedDefaults(?User $creator = null): void
+    {
+        foreach (self::DEFAULTS as $name) {
+            self::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'user_id' => $creator?->id]);
+        }
+    }
+
+    /** Quem criou a tag (as tags são da biblioteca, compartilhadas por todos). */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

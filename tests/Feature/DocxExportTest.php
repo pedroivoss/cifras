@@ -106,13 +106,13 @@ class DocxExportTest extends TestCase
         $this->assertSame(['E  B'], $this->texts($xpath, '//w:r[w:rPr/w:rStyle/@w:val="Chord"]'));
     }
 
-    public function test_other_users_cannot_export_docx(): void
+    public function test_playlists_are_private_but_library_songs_export_for_everyone(): void
     {
         $item = PlaylistItem::factory()->create();
         $intruder = User::factory()->create();
 
         $this->actingAs($intruder)->get(route('playlists.docx', $item->playlist_id))->assertForbidden();
-        $this->actingAs($intruder)->get(route('songs.docx', $item->song_id))->assertForbidden();
+        $this->actingAs($intruder)->get(route('songs.docx', $item->song_id))->assertOk();
     }
 
     public function test_guests_are_sent_to_login(): void

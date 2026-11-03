@@ -22,7 +22,7 @@ class TagRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:80'],
-            'slug' => [Rule::unique('tags', 'slug')->where('user_id', $this->user()->id)->ignore($this->route('tag'))],
+            'slug' => [Rule::unique('tags', 'slug')->ignore($this->route('tag'))],
             'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
     }

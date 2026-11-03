@@ -14,14 +14,14 @@ class TagController extends Controller
     public function index(Request $request): View
     {
         return view('tags.index', [
-            'tags' => $request->user()->tags()->withCount('songs')->orderBy('name')->get(),
-            'editing' => $request->filled('edit') ? $request->user()->tags()->find($request->integer('edit')) : null,
+            'tags' => Tag::withCount('songs')->orderBy('name')->get(),
+            'editing' => $request->filled('edit') ? Tag::find($request->integer('edit')) : null,
         ]);
     }
 
     public function store(TagRequest $request): RedirectResponse
     {
-        $request->user()->tags()->create($request->safe()->only(['name', 'color']));
+        Tag::create([...$request->safe()->only(['name', 'color']), 'user_id' => $request->user()->id]);
 
         return redirect()->route('tags.index')->with('success', 'Tag criada.');
     }

@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PlaylistController;
 use App\Http\Controllers\PlaylistItemController;
 use App\Http\Controllers\PublicPlaylistController;
@@ -18,6 +20,8 @@ Route::get('/', fn () => redirect()->route(Auth::check() ? 'dashboard' : 'login'
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
     Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:20,1')->name('auth.google');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:20,1')->name('auth.google.callback');
 });
 
 Route::middleware('throttle:60,1')->group(function () {
@@ -30,18 +34,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    Route::get('/songs/import', [SongImportController::class, 'create'])->name('songs.import');
-    Route::post('/songs/import/paste', [SongImportController::class, 'paste'])->name('songs.import.paste');
-    Route::post('/songs/import/file', [SongImportController::class, 'file'])->name('songs.import.file');
-    Route::post('/songs/import/external', [SongImportController::class, 'external'])->middleware('throttle:10,1')->name('songs.import.external');
-    Route::get('/songs/{song}/versions/create', [SongVersionController::class, 'create'])->name('songs.versions.create');
-    Route::post('/songs/{song}/versions', [SongVersionController::class, 'store'])->name('songs.versions.store');
-    Route::delete('/songs/{song}/versions/{version}', [SongVersionController::class, 'destroy'])->name('songs.versions.destroy');
+    // Biblioteca compartilhada: todos veem; cadastrar/editar exige a permissão de músicas.
+    Route::middleware('can:manage-songs')->group(function () {
+        Route::get('/songs/import', [SongImportController::class, 'create'])->name('songs.import');
+        Route::post('/songs/import/paste', [SongImportController::class, 'paste'])->name('songs.import.paste');
+        Route::post('/songs/import/file', [SongImportController::class, 'file'])->name('songs.import.file');
+        Route::post('/songs/import/external', [SongImportController::class, 'external'])->middleware('throttle:10,1')->name('songs.import.external');
+        Route::get('/songs/{song}/versions/create', [SongVersionController::class, 'create'])->name('songs.versions.create');
+        Route::post('/songs/{song}/versions', [SongVersionController::class, 'store'])->name('songs.versions.store');
+        Route::delete('/songs/{song}/versions/{version}', [SongVersionController::class, 'destroy'])->name('songs.versions.destroy');
+        Route::resource('songs', SongController::class)->except(['index', 'show']);
+        Route::resource('tags', TagController::class)->except(['create', 'show', 'edit']);
+    });
     Route::get('/songs/{song}/pdf', [SongController::class, 'pdf'])->middleware('throttle:30,1')->name('songs.pdf');
     Route::get('/songs/{song}/docx', [SongController::class, 'docx'])->middleware('throttle:30,1')->name('songs.docx');
-    Route::resource('songs', SongController::class);
-
-    Route::resource('tags', TagController::class)->except(['create', 'show', 'edit']);
+    Route::resource('songs', SongController::class)->only(['index', 'show']);
 
     Route::get('/playlists/{playlist}/sheets', [PlaylistController::class, 'sheets'])->name('playlists.sheets');
     Route::get('/playlists/{playlist}/pdf', [PlaylistController::class, 'pdf'])->middleware('throttle:30,1')->name('playlists.pdf');
@@ -59,6 +66,11 @@ Route::middleware('auth')->group(function () {
     Route::put('/playlist-items/{item}/content', [PlaylistItemController::class, 'updateContent'])->name('playlist-items.content');
     Route::delete('/playlist-items/{item}', [PlaylistItemController::class, 'destroy'])->name('playlist-items.destroy');
     Route::resource('playlists', PlaylistController::class);
+
+    Route::middleware('can:manage-users')->prefix('admin')->name('admin.')->group(function () {
+        Route::patch('/users/{user}/toggle', [UserController::class, 'toggle'])->name('users.toggle');
+        Route::resource('users', UserController::class)->except(['show', 'destroy']);
+    });
 
     Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
     Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');

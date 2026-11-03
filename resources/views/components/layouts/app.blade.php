@@ -1,12 +1,13 @@
 @props(['title' => null])
 @php
-    $nav = [
+    $nav = array_values(array_filter([
         ['dashboard', 'Dashboard', 'home', 'dashboard'],
         ['songs.index', 'Músicas', 'music', 'songs.*'],
         ['playlists.index', 'Playlists', 'list', 'playlists.*'],
-        ['tags.index', 'Tags', 'tag', 'tags.*'],
+        auth()->user()->can('manage-songs') ? ['tags.index', 'Tags', 'tag', 'tags.*'] : null,
+        auth()->user()->can('manage-users') ? ['admin.users.index', 'Usuários', 'users', 'admin.users.*'] : null,
         ['settings', 'Configurações', 'cog', 'settings*'],
-    ];
+    ]));
 @endphp
 <x-layouts.base :title="$title">
     <div x-data="{ menu: false }" class="min-h-full">

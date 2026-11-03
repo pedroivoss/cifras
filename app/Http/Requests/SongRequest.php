@@ -38,7 +38,7 @@ class SongRequest extends FormRequest
             'source_url' => ['nullable', 'url:http,https', 'max:500'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'tags' => ['array'],
-            'tags.*' => ['integer', Rule::exists('tags', 'id')->where('user_id', $this->user()->id)],
+            'tags.*' => ['integer', Rule::exists('tags', 'id')],
             'new_tags' => ['nullable', 'string', 'max:500'],
         ];
     }

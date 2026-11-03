@@ -22,7 +22,7 @@ class PlaylistItemController extends Controller
 
         $data = $request->validate([
             'song_ids' => ['required', 'array', 'min:1', 'max:200'],
-            'song_ids.*' => ['integer', Rule::exists('songs', 'id')->where('user_id', $request->user()->id)],
+            'song_ids.*' => ['integer', Rule::exists('songs', 'id')],
             'semitones' => ['nullable', 'integer', 'between:-11,11'],
             'song_version_id' => ['nullable', 'integer'],
         ], ['song_ids.required' => 'Selecione pelo menos uma música.']);

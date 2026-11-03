@@ -1,9 +1,11 @@
 <x-layouts.app title="Músicas">
     <x-page-header title="Músicas" subtitle="{{ $songs->total() }} {{ $songs->total() === 1 ? 'música' : 'músicas' }} na biblioteca">
-        <x-slot:actions>
-            <a href="{{ route('songs.import') }}" class="btn-secondary"><x-icon name="upload" class="size-4" /> Importar</a>
-            <a href="{{ route('songs.create') }}" class="btn-primary"><x-icon name="plus" class="size-4" /> Nova música</a>
-        </x-slot:actions>
+        @can('manage-songs')
+            <x-slot:actions>
+                <a href="{{ route('songs.import') }}" class="btn-secondary"><x-icon name="upload" class="size-4" /> Importar</a>
+                <a href="{{ route('songs.create') }}" class="btn-primary"><x-icon name="plus" class="size-4" /> Nova música</a>
+            </x-slot:actions>
+        @endcan
     </x-page-header>
 
     <form method="GET" class="card mb-5 space-y-3 p-4" x-data>
@@ -32,7 +34,7 @@
 
     @if ($songs->isEmpty())
         <x-empty title="{{ $q || $selectedTags ? 'Nenhuma música encontrada' : 'Sua biblioteca está vazia' }}">
-            @if ($q || $selectedTags) Ajuste a busca ou os filtros. @else <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastre</a> ou <a href="{{ route('songs.import') }}" class="text-indigo-600 hover:underline">importe</a> uma cifra. @endif
+            @if ($q || $selectedTags) Ajuste a busca ou os filtros. @elseif (auth()->user()->cannot('manage-songs')) Peça a quem cadastra músicas para incluir as cifras. @else <a href="{{ route('songs.create') }}" class="text-indigo-600 hover:underline">Cadastre</a> ou <a href="{{ route('songs.import') }}" class="text-indigo-600 hover:underline">importe</a> uma cifra. @endif
         </x-empty>
     @else
         <div class="card divide-y divide-slate-100">

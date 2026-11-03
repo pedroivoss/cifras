@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Espaços no início/fim da cifra definem o alinhamento dos acordes: não podem ser removidos.
         $middleware->trimStrings(except: ['content']);
         $middleware->append(SecurityHeaders::class);
+        $middleware->appendToGroup('web', EnsureUserIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

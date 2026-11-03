@@ -47,14 +47,15 @@ class PlaylistTest extends TestCase
         $this->assertSame([0, 0, 2], $items->pluck('semitones')->all());
     }
 
-    public function test_cannot_add_songs_from_another_user(): void
+    public function test_any_library_song_can_be_added_but_not_missing_ones(): void
     {
         $user = User::factory()->create();
         $playlist = Playlist::factory()->for($user)->create();
-        $foreign = Song::factory()->create();
+        $registeredBySomeoneElse = Song::factory()->create();
 
-        $this->actingAs($user)->post(route('playlists.items.store', $playlist), ['song_ids' => [$foreign->id]])
-            ->assertSessionHasErrors('song_ids.0');
+        $this->actingAs($user)->post(route('playlists.items.store', $playlist), ['song_ids' => [$registeredBySomeoneElse->id]])->assertSessionHasNoErrors();
+        $this->actingAs($user)->post(route('playlists.items.store', $playlist), ['song_ids' => [999999]])->assertSessionHasErrors('song_ids.0');
+        $this->assertSame(1, $playlist->items()->count());
     }
 
     public function test_reorder_persists_positions(): void

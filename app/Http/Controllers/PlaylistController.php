@@ -6,6 +6,8 @@ use App\Http\Requests\PdfExportRequest;
 use App\Http\Requests\PlaylistRequest;
 use App\Models\Playlist;
 use App\Models\PlaylistItem;
+use App\Models\Song;
+use App\Models\User;
 use App\Services\Chords\Key;
 use App\Services\Chords\Transposer;
 use App\Services\Docx\SongbookDocx;
@@ -33,13 +35,26 @@ class PlaylistController extends Controller
         return view('playlists.index', ['playlists' => $playlists, 'q' => $request->input('q')]);
     }
 
-    public function create(): View
+    public function create(Request $request): View|RedirectResponse
     {
+        if ($request->user()->hasReachedPlaylistLimit()) {
+            return redirect()->route('playlists.index')->with('error', self::limitMessage($request->user()));
+        }
+
         return view('playlists.form', ['playlist' => new Playlist]);
+    }
+
+    private static function limitMessage(User $user): string
+    {
+        return "Você chegou ao limite de {$user->playlistLimit()} playlists. Exclua uma antiga para criar outra.";
     }
 
     public function store(PlaylistRequest $request): RedirectResponse
     {
+        if ($request->user()->hasReachedPlaylistLimit()) {
+            return back()->withInput()->withErrors(['name' => self::limitMessage($request->user())]);
+        }
+
         $playlist = $request->user()->playlists()->create($request->playlistAttributes());
         $this->saveCoverImage($request, $playlist);
 
@@ -55,7 +70,7 @@ class PlaylistController extends Controller
         return view('playlists.show', [
             'playlist' => $playlist,
             'items' => $playlist->items->map(fn (PlaylistItem $item) => self::itemPayload($item))->values(),
-            'library' => $request->user()->songs()
+            'library' => Song::query()
                 ->with(['tags:id,name', 'versions:id,song_id,name,original_key,position'])
                 ->orderBy('title')
                 ->get(['id', 'title', 'artist'])
@@ -177,9 +192,13 @@ class PlaylistController extends Controller
         return redirect()->route('playlists.index')->with('success', 'Playlist excluída. As músicas continuam na biblioteca.');
     }
 
-    public function duplicate(Playlist $playlist): RedirectResponse
+    public function duplicate(Request $request, Playlist $playlist): RedirectResponse
     {
         Gate::authorize('view', $playlist);
+
+        if ($request->user()->hasReachedPlaylistLimit()) {
+            return back()->with('error', self::limitMessage($request->user()));
+        }
 
         return redirect()->route('playlists.show', $playlist->duplicate())->with('success', 'Playlist duplicada.');
     }

@@ -1,5 +1,6 @@
 <x-layouts.app title="Playlists">
-    <x-page-header title="Playlists" subtitle="Repertórios ilimitados, cada um com sua ordem e seus tons.">
+    @php($limit = auth()->user()->playlistLimit())
+    <x-page-header title="Playlists" :subtitle="$limit ? 'Você usa '.$playlists->total().' de '.$limit.' playlists. Cada uma com sua ordem, tons e link.' : 'Cada playlist com sua ordem, tons e link.'">
         <x-slot:actions>
             <a href="{{ route('playlists.create') }}" class="btn-primary"><x-icon name="plus" class="size-4" /> Nova playlist</a>
         </x-slot:actions>
