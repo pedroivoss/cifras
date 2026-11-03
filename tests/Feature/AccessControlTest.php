@@ -167,6 +167,25 @@ class AccessControlTest extends TestCase
         $this->assertSame(3, $admin->playlists()->count());
     }
 
+    public function test_admin_sets_a_custom_playlist_limit_per_user(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $member = User::factory()->create(['username' => 'maria', 'email' => 'maria@gmail.com']);
+        $this->assertSame(20, $member->playlistLimit(), 'Padrão de 20');
+
+        $this->actingAs($admin)->put(route('admin.users.update', $member), $this->validUser(['password' => '', 'playlist_limit' => 1]))->assertSessionHasNoErrors();
+        $this->assertSame(1, $member->fresh()->playlistLimit());
+
+        $this->actingAs($member->fresh())->post(route('playlists.store'), ['name' => 'Primeira'])->assertSessionHasNoErrors();
+        $this->actingAs($member->fresh())->post(route('playlists.store'), ['name' => 'Segunda'])->assertSessionHasErrors('name');
+
+        $this->actingAs($admin)->put(route('admin.users.update', $member), $this->validUser(['password' => '', 'playlist_limit' => '']));
+        $this->assertNull($member->fresh()->playlist_limit);
+        $this->assertSame(20, $member->fresh()->playlistLimit(), 'Em branco volta ao padrão');
+
+        $this->actingAs($admin)->put(route('admin.users.update', $member), $this->validUser(['password' => '', 'playlist_limit' => -1]))->assertSessionHasErrors('playlist_limit');
+    }
+
     public function test_public_links_of_deactivated_users_stop_working(): void
     {
         $playlist = Playlist::factory()->public(true)->create();

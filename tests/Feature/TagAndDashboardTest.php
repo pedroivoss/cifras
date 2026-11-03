@@ -64,7 +64,7 @@ class TagAndDashboardTest extends TestCase
             ->assertDontSee('Playlist de outra pessoa')
             ->assertSee('Música de outra pessoa')
             ->assertSeeInOrder(['data-testid="count-musicas"', '3'], false)
-            ->assertSeeInOrder(['data-testid="count-playlists"', '1', 'de 30'], false)
+            ->assertSeeInOrder(['data-testid="count-playlists"', '1', 'de 20'], false)
             ->assertDontSee('data-testid="count-tags"', false);
     }
 }

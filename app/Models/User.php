@@ -13,7 +13,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'username', 'email', 'password', 'is_admin', 'can_manage_songs', 'is_active', 'google_id', 'last_login_at'])]
+#[Fillable(['name', 'username', 'email', 'password', 'is_admin', 'can_manage_songs', 'playlist_limit', 'is_active', 'google_id', 'last_login_at'])]
 #[Hidden(['password', 'remember_token', 'google_id'])]
 class User extends Authenticatable
 {
@@ -34,6 +34,7 @@ class User extends Authenticatable
             'is_admin' => 'boolean',
             'can_manage_songs' => 'boolean',
             'is_active' => 'boolean',
+            'playlist_limit' => 'integer',
         ];
     }
 
@@ -54,10 +55,10 @@ class User extends Authenticatable
         return $this->is_admin || $this->can_manage_songs;
     }
 
-    /** Limite de playlists por conta (config cifras.playlist_limit); administradores não têm limite. */
+    /** Limite de playlists: o definido pelo administrador nesta conta ou o padrão; administradores não têm limite. */
     public function playlistLimit(): ?int
     {
-        return $this->is_admin ? null : (int) config('cifras.playlist_limit');
+        return $this->is_admin ? null : ($this->playlist_limit ?? (int) config('cifras.playlist_limit'));
     }
 
     public function hasReachedPlaylistLimit(): bool

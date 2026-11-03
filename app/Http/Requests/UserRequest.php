@@ -38,6 +38,7 @@ class UserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user)],
             'password' => ['nullable', 'string', Password::min(8)],
             'can_manage_songs' => ['boolean'],
+            'playlist_limit' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'is_admin' => ['boolean'],
             'is_active' => ['boolean'],
         ];
@@ -62,6 +63,7 @@ class UserRequest extends FormRequest
         $attributes = [
             ...$this->safe()->only(['name', 'username', 'email']),
             'can_manage_songs' => $this->boolean('can_manage_songs'),
+            'playlist_limit' => $this->filled('playlist_limit') ? $this->integer('playlist_limit') : null,
             'is_admin' => $this->boolean('is_admin'),
             'is_active' => $this->boolean('is_active'),
         ];
@@ -80,6 +82,6 @@ class UserRequest extends FormRequest
 
     public function attributes(): array
     {
-        return ['name' => 'nome', 'username' => 'usuário', 'email' => 'e-mail', 'password' => 'senha'];
+        return ['name' => 'nome', 'username' => 'usuário', 'email' => 'e-mail', 'password' => 'senha', 'playlist_limit' => 'limite de playlists'];
     }
 }

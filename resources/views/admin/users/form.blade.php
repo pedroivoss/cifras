@@ -49,7 +49,12 @@
                 </label>
             @endforeach
             @error('is_admin')<p class="error">{{ $message }}</p>@enderror
-            <p class="text-xs text-slate-500">Contas comuns podem criar até {{ config('cifras.playlist_limit') }} playlists (com tons, links e PDF) e veem todas as músicas.</p>
+            <div class="pt-2">
+                <label for="playlist_limit" class="label">Limite de playlists</label>
+                <input id="playlist_limit" name="playlist_limit" type="number" min="0" max="1000" inputmode="numeric" value="{{ old('playlist_limit', $user->playlist_limit) }}" placeholder="Padrão: {{ config('cifras.playlist_limit') }}" class="input w-40" data-testid="playlist-limit">
+                @error('playlist_limit')<p class="error">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-slate-500">Em branco = padrão ({{ config('cifras.playlist_limit') }}). Cada playlist pode ter um link público. Administradores não têm limite. Se diminuir abaixo do que a pessoa já tem, nada é apagado: ela só não cria novas.</p>
+            </div>
         </fieldset>
 
         <div class="flex gap-2">
